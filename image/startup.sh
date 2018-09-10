@@ -96,10 +96,9 @@ echo "clearup.  about to set password and http_password to null"
 PASSWORD=
 HTTP_PASSWORD=
 
-
-BINDIRECTORY="/usr/local/bin/"
+BINDIRECTORY="/usr/local/bin"
 REPOFILE="/usr/local/bin/repo"
-echo "about to check for existence of ~/bin/repo"
+echo "about to check for existence of file /usr/local/bin/repo"
 echo "REPOFILE = $REPOFILE "
 echo "BINDIRECTORY = $BINDIRECTORY "
 if [ ! -f "$REPOFILE" ]; then
@@ -107,14 +106,21 @@ if [ ! -f "$REPOFILE" ]; then
     # Control will enter here if ~/bin doesn't exist.
     # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
     echo "REPOFILE wasn't found, attempting to mkdir and curl"
-    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
-    chmod a+x /usr/local/bin/repo
+    curl https://storage.googleapis.com/git-repo-downloads/repo > $REPOFILE
+    chmod a+x $REPOFILE
 else
     echo "repo was found!" 
 fi
 
+
 # now clone Poky in (from Yocto quick setup guide)
 apt-get update
+
+if find /home/kyle/foo -mindepth 1 | read; then
+   echo "dir not empty"
+else
+   echo "dir empty"
+fi
 
 #HOME=/home/$USER
 POKYDIR="${HOME}/poky"
@@ -128,10 +134,15 @@ if [ ! -d "$POKYDIR" ]; then
     cd $POKYDIR
     echo $PWD
     git checkout tags/yocto-2.5 -b my-yocto-2.5
+elif find $POKYDIR -mindepth 1 | read; then
+    echo "POKYDIR exists, is non empty, therefore poky already installed"
 else
-    echo "POKYDIR exists already!"
+    git clone git://git.yoctoproject.org/poky $POKYDIR
+    echo $PWD
+    cd $POKYDIR
+    echo $PWD
+    git checkout tags/yocto-2.5 -b my-yocto-2.5
 fi
-
 
 
 echo "about to exec /bin/tini -- usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"
