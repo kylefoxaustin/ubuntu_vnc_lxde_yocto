@@ -107,7 +107,7 @@ if [ ! -f "$REPOFILE" ]; then
     # Control will enter here if ~/bin doesn't exist.
     # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
     echo "REPOFILE wasn't found, attempting to mkdir and curl"
-    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin
+    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
     chmod a+x /usr/local/bin/repo
 else
     echo "repo was found!" 
