@@ -107,15 +107,14 @@ if [ ! -d "$BINDIRECTORY" ]; then
     # Control will enter here if ~/bin doesn't exist.
     # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
     echo "BINDIRECTORY was empty, attempting to mkdir and curl"
-    mkdir ~/bin
-    curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-    chmod a+x ~/bin/repo
+    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin
+    chmod a+x /usr/local/bin/repo
 elif [ ! -d "REPODIRECTORY" ]; then
     # Control will enter here if ~/bin DOES exist but ~/bin/repo doesn't exist.
     # now install ~/bin directory with repo from NXP i.MX recommended yocto packages
     echo "BINDIRECTORY existed, now attempting to curl into /bin/repo"
-    curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-    chmod a+x ~/bin/repo
+    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
+    chmod a+x /usr/local/bin/repo
 else
     echo "something went wrong with curl of i.MX recommended packages"
 fi
@@ -135,6 +134,8 @@ if [ ! -d "$POKYDIR" ]; then
     cd $POKYDIR
     echo $PWD
     git checkout tags/yocto-2.5 -b my-yocto-2.5
+else
+    echo "POKYDIR exists already!"
 fi
 
 
