@@ -14,7 +14,10 @@ if [ -n "$RESOLUTION" ]; then
     echo "starting set resolution section"
     sed -i "s/1024x768/$RESOLUTION/" /usr/local/bin/xvfb.sh
 fi
-
+echo "THIS IS THE HOME DIRECTORY BEFORE SETTING HOME TO ROOT"
+echo $HOME
+pwd
+sleep 2
 echo "setting USER to root"
 USER=${USER:-root}
 echo "setting HOME to root"
@@ -25,13 +28,18 @@ if [ "$USER" != "root" ]; then
     useradd --create-home --shell /bin/bash --user-group --groups adm,sudo $USER
     if [ -z "$PASSWORD" ]; then
         echo "  set default password to \"ubuntu\""
-        PASSWORD=ubuntu
+        PASSWORD=password
     fi
     HOME=/home/$USER
     echo "$USER:$PASSWORD" | chpasswd
     cp -r /root/{.gtkrc-2.0,.asoundrc} ${HOME}
     [ -d "/dev/snd" ] && chgrp -R adm /dev/snd
 fi
+
+echo "hello, enter some input"
+sleep 5
+
+read varname
 
 echo "starting sed -i etc, supervisor, conf.d, supervisord.conf"
 sed -i "s|%USER%|$USER|" /etc/supervisor/conf.d/supervisord.conf
@@ -47,7 +55,12 @@ echo "about to ln -sf /usr/local/share/doro-lxde-wallpapers/desktop-teims.blah"
 ln -sf /usr/local/share/doro-lxde-wallpapers/desktop-items-0.conf $HOME/.config/pcmanfm/LXDE/
 echo "about to chown USER"
 
-chown -R --verbose $USER:$USER $HOME
+if [ ! -f /usr/local/chownstatus/chownhasrun.txt ]; then
+    echo "this is the first time the container has run, need to chown $USER:$USER $HOME" 
+    chown -R --verbose $USER:$USER $HOME
+    mkdir -p /usr/local/chownstatus/
+    touch /usr/local/chownstatus/chownhasrun.txt 
+fi
 
 # nginx workers
 echo "about to sed -i nginx workers"
@@ -86,16 +99,21 @@ HTTP_PASSWORD=
 
 BINDIRECTORY="~/bin"
 REPODIRECTORY="~/bin/repo"
+echo "about to check for existence of ~/bin/repo"
+echo "REPODIRECTORY = $REPODIRECTORY "
+echo "BINDIRECTORY = $BINDIRECTORY "
 if [ ! -d "$BINDIRECTORY" ]; then
 
     # Control will enter here if ~/bin doesn't exist.
     # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
+    echo "BINDIRECTORY was empty, attempting to mkdir and curl"
     mkdir ~/bin
     curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
     chmod a+x ~/bin/repo
 elif [ ! -d "REPODIRECTORY" ]; then
     # Control will enter here if ~/bin DOES exist but ~/bin/repo doesn't exist.
     # now install ~/bin directory with repo from NXP i.MX recommended yocto packages
+    echo "BINDIRECTORY existed, now attempting to curl into /bin/repo"
     curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
     chmod a+x ~/bin/repo
 else
@@ -105,9 +123,11 @@ fi
 # now clone Poky in (from Yocto quick setup guide)
 apt-get update
 
-POKYDIR="/root/poky"
+#HOME=/home/$USER
+POKYDIR="${HOME}/poky"
+echo "POKYDIR is = $POKYDIR"
 if [ ! -d "$POKYDIR" ]; then
-
+    echo "POKYDIR doesn't exist so creating Poky and cloning"
     mkdir -p $POKYDIR
     echo $PWD
     git clone git://git.yoctoproject.org/poky $POKYDIR

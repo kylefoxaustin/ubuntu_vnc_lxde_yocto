@@ -8,6 +8,7 @@ FROM arm32v7/ubuntu:18.04 as system
 
 COPY --from=amd64 /usr/bin/qemu-arm-static /usr/bin/
 ARG localbuild
+RUN #!/bin/bash
 RUN if [ "x$localbuild" != "x" ]; then sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; fi
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -61,6 +62,36 @@ RUN apt-get update \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/* /tmp/a.txt /tmp/b.txt
+
+# start installing Yocto base host packages, git, tar, python
+RUN apt-get update && apt-get install -y --no-install-recommends git tar python3
+
+# now install additional yocto base host packages
+RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gcc-multilib \
+     build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
+     xz-utils debianutils iputils-ping libsdl1.2-dev xterm
+
+RUN apt-get update
+
+# now install from the NXP i.MX recommended yocto packages
+RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gcc-multilib \
+ build-essential chrpath socat libsdl1.2-dev libsdl1.2-dev xterm sed cvs subversion coreutils texi2html \
+docbook-utils python-pysqlite2 help2man make gcc g++ desktop-file-utils \
+libgl1-mesa-dev libglu1-mesa-dev mercurial autoconf automake groff curl lzop asciidoc 
+
+RUN apt-get update
+
+# now install uboot tools from NXP i.MX recommended yocto packages
+RUN apt-get update && apt-get install -y --no-install-recommends u-boot-tools
+
+RUN apt-get update
+
+# now install emacs
+RUN apt-get update && apt-get install -y --no-install-recommends emacs
+
+RUN apt-get update
+
+
 
 
 ################################################################################

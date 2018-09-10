@@ -108,25 +108,11 @@ RUN cd /src/web \
 # merge
 ################################################################################
 FROM system
-LABEL maintainer="fcwu.tw@gmail.com"
+LABEL maintainer="kylefoxaustin"
 
 COPY --from=builder /src/web/dist/ /usr/local/lib/web/frontend/
 COPY image /
 
-# now install ~/bin directory with repo from NXP i.MX recommended yocto packages
-#RUN mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
-
-# now clone Poky in (from Yocto quick setup guide)
-#RUN apt-get update && mkdir -p /root/poky && echo $PWD && git clone git://git.yoctoproject.org/poky /root/poky && echo $PWD && cd /root/poky && echo $PWD && git checkout tags/yocto-2.5 -b my-yocto-2.5
-#RUN cd /root
-#RUN pwd 
-#RUN git clone git://git.yoctoproject.org/poky
-#RUN pwd
-#RUN cd ./poky
-#RUN pwd
-#RUN ls
-#RUN git checkout tags/yocto-2.5 -b my-yocto-2.5
-     
 EXPOSE 80
 WORKDIR /home
 ENV HOME=/home/ \
