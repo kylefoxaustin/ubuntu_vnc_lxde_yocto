@@ -97,26 +97,20 @@ PASSWORD=
 HTTP_PASSWORD=
 
 
-BINDIRECTORY="~/bin"
-REPODIRECTORY="~/bin/repo"
+BINDIRECTORY="/usr/local/bin/"
+REPOFILE="/usr/local/bin/repo"
 echo "about to check for existence of ~/bin/repo"
-echo "REPODIRECTORY = $REPODIRECTORY "
+echo "REPOFILE = $REPOFILE "
 echo "BINDIRECTORY = $BINDIRECTORY "
-if [ ! -d "$BINDIRECTORY" ]; then
+if [ ! -f "$REPOFILE" ]; then
 
     # Control will enter here if ~/bin doesn't exist.
     # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
-    echo "BINDIRECTORY was empty, attempting to mkdir and curl"
+    echo "REPOFILE wasn't found, attempting to mkdir and curl"
     curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin
     chmod a+x /usr/local/bin/repo
-elif [ ! -d "REPODIRECTORY" ]; then
-    # Control will enter here if ~/bin DOES exist but ~/bin/repo doesn't exist.
-    # now install ~/bin directory with repo from NXP i.MX recommended yocto packages
-    echo "BINDIRECTORY existed, now attempting to curl into /bin/repo"
-    curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
-    chmod a+x /usr/local/bin/repo
 else
-    echo "something went wrong with curl of i.MX recommended packages"
+    echo "repo was found!" 
 fi
 
 # now clone Poky in (from Yocto quick setup guide)
