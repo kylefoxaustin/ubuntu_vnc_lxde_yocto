@@ -36,11 +36,6 @@ if [ "$USER" != "root" ]; then
     [ -d "/dev/snd" ] && chgrp -R adm /dev/snd
 fi
 
-echo "hello, enter some input"
-sleep 5
-
-read varname
-
 echo "starting sed -i etc, supervisor, conf.d, supervisord.conf"
 sed -i "s|%USER%|$USER|" /etc/supervisor/conf.d/supervisord.conf
 
@@ -116,12 +111,6 @@ fi
 # now clone Poky in (from Yocto quick setup guide)
 apt-get update
 
-if find /home/kyle/foo -mindepth 1 | read; then
-   echo "dir not empty"
-else
-   echo "dir empty"
-fi
-
 #HOME=/home/$USER
 POKYDIR="${HOME}/poky"
 echo "POKYDIR is = $POKYDIR"
@@ -144,7 +133,12 @@ else
     git checkout tags/yocto-2.5 -b my-yocto-2.5
 fi
 
+echo "HOME ENV was $HOME"
+echo "setting HOME ENV to actual path"
+export HOME=$HOME
+echo "HOME ENV is now $HOME"
 
 echo "about to exec /bin/tini -- usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"
 
 exec /bin/tini -- /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
+
