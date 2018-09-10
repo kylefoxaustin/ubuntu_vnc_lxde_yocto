@@ -1,3 +1,28 @@
+# This is a cloned project of the original fcwu/docker-ubuntu-vnc-desktop.
+
+# I have updated to my purposes which is to provide a container which has the following base characteristics:
+1) is running Ubuntu so that it can be updated by the enduser... flexibility
+2) does not run a service then exit.  It is intended to provide services but be able to act
+   somewhat like a full operating system in that it stays up until explicitly closed
+3) provides a full lxde GUI via VNC (port 5900) so that user can run/execute GUI programs inside
+- I realize that this approach is a little bit different from the classic 1-service/1-container view of Docker
+
+# This branch of the the base ubuntu_vnc_lxde_yocto pulls in Yocto/Poky 2.5.0
+1) Upon 1st run, the container will pull the full Poky SDK from web source
+2) container is smart enough that if it detects the poky directory inside, it won't pull it again
+   This situation may occur if you run the base container and then commit it to a new container
+   
+
+You can use this container with the command line arguments listed below (copied from the fcwu/docker-ubuntu-vnc-desktop source readme.md)
+
+Happy Coding
+
+Kylef
+
+
+
+
+
 docker-ubuntu-vnc-desktop
 =========================
 
