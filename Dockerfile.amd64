@@ -114,8 +114,8 @@ COPY --from=builder /src/web/dist/ /usr/local/lib/web/frontend/
 COPY image /
 
 EXPOSE 80
-WORKDIR /home
-ENV HOME=/home/ \
+WORKDIR /root 
+ENV HOME=/root/ \
     SHELL=/bin/bash
 HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1/api/health
 ENTRYPOINT ["/startup.sh"]

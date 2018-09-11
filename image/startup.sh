@@ -135,10 +135,29 @@ fi
 
 echo "HOME ENV was $HOME"
 echo "setting HOME ENV to actual path"
-export HOME=$HOME
+export HOME=$HOME # don't think this is taking...
 echo "HOME ENV is now $HOME"
+sleep 10
+
+#now add line to bashrc and profile for HOME directory's actual position
+#at this point, ubuntu has HOME=/home.  But if you start container as root (default) and
+#don't place a new user name in the docker run command, then HOME needs to be /root
+
+if [ "$HOME" = "/root" ]; then
+    echo "HOME was /root so about to set bashrc and profile exports"
+    echo 'export HOME=/root/' >> /root/.bashrc
+    source /root/.bashrc
+    echo 'export HOME=/root/' >> /root/.profile
+    source /root/.bashrc
+else
+    echo "HOME was NOT /root so about to set bashrc and profile exports"
+    echo 'export HOME=$HOME' >> /${HOME}/.bashrc
+    source /${HOME}/.bashrc
+    echo 'export HOME=$HOME' >> /${HOME}/.profile
+    source /${HOME}/.bashrc
+fi
+
 
 echo "about to exec /bin/tini -- usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"
 
 exec /bin/tini -- /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
-
