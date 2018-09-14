@@ -1,6 +1,6 @@
 .PHONY: build run
 
-REPO  ?= dorowu/ubuntu-desktop-lxde-vnc
+REPO  ?= kylefoxaustin/imx8_yocto_build_container_ubuntu_lxde_vnc
 TAG   ?= latest
 
 build:
@@ -9,17 +9,18 @@ build:
 run:
 	docker run --rm \
 		-p 6080:80 -p 6081:443 \
+		-p 5900:5900 \
 		-v ${PWD}:/src:ro \
-		-e USER=doro -e PASSWORD=mypassword \
+		-e USER=kyle -e PASSWORD=mypassword \
 		-e ALSADEV=hw:2,0 \
 		-e SSL_PORT=443 \
 		-v ${PWD}/ssl:/etc/nginx/ssl \
 		--device /dev/snd \
-		--name ubuntu-desktop-lxde-test \
+		--name imx8-yocto-build-test \
 		$(REPO):$(TAG)
 
 shell:
-	docker exec -it ubuntu-desktop-lxde-test bash
+	docker exec -it imx8-yocto-build-test bash
 
 gen-ssl:
 	mkdir -p ssl
