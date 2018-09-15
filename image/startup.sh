@@ -139,7 +139,7 @@ HTTP_PASSWORD=
 # 3) install chosen i.MX bsp              ##
 ############################################
 
-MAXMENU=1
+MAXMENU=3
 # ===================
 # Script funtionality
 # ===================
@@ -160,11 +160,16 @@ doSomething_1() {
 		  echo "Yocto Poky check... POKYDIR doesn't exist so creating Poky and cloning"
 		  mkdir -p $POKYDIR
 		  echo $PWD
+		  echo "beginning clone...:"
 		  git clone git://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
+		  echo ""
+		  echo "clone complete..."
+		  echo "about to initiate git checkout, tags yocto-2.5 to my-yocto-2.5"
 		  git checkout tags/yocto-2.5 -b my-yocto-2.5
+		  echo "git checkout complete..."
 		  echo "install complete into $POKYDIR"
 		  echo "press ENTER to continue..."
 		  read enterkey
@@ -173,20 +178,24 @@ doSomething_1() {
 		  echo "press ENTER to continue..."
 		  read enterkey
 	      else
-		  echo "$POKYDIR exists but does not contain anything, proceeding with installation"
+		  echo "$POKYDIR exists but directory does not contain anything"
+		  echo "proceeding with installation into $POKYDIR"
+		  echo "beginning clone...:"
 		  git clone git://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
-		  echo "installation complete, proceeding to git checkout yocto-2.5"
+		  echo "clone complete..."
+		  echo "about to initiate git checkout, tags yocto-2.5 to my-yocto-2.5"
 		  git checkout tags/yocto-2.5 -b my-yocto-2.5
-		  echo "checkout complete"
+		  echo "git checkout complete"
+		  echo "install complete..."
 		  echo "press ENTER to continue..."
 		  read enterkey
 	      fi
 	      ;;
 	n|N ) echo "no";;
-	* ) echo "invalid";;
+	* ) echo "invalid choice";;
     esac
 }
 
@@ -211,6 +220,8 @@ doSomething_2() {
 		  # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
 		  echo "REPOFILE wasn't found, attempting to mkdir and curl"
 		  sudo curl https://storage.googleapis.com/git-repo-downloads/repo > $REPOFILE
+		  echo "curl complete..."
+		  echo "attempting to make $REPOFILE executable"
 		  chmod a+x $REPOFILE
 		  echo "press ENTER to continue"
 		  read enterkey
@@ -230,9 +241,91 @@ doSomething_3() {
     local CONTINUE=0
     read CONTINUE
     case $CONTINUE in 
-	y|Y ) echo "yes";;
-	n|N ) echo "no";;
-	* ) echo "invalid";;
+	y|Y ) echo "yes"
+
+	      STOPLOOP=0
+	      while [ $STOPLOOP -eq 0 ]
+	      do
+		  
+	      IMXBSPNAME=0
+	      CODEAUR=0
+	      IMXBSPVERSION=0
+	      DIR=yocto-imx-bsp
+	      YESNOEXIT=0
+	      
+	      echo "I need the source code expository URL"
+	      echo "Just hit ENTER if you want to use default https://source.codeaurora.org/external/imx/imx-manifest"  
+	      echo "please enter the URL:"
+	      read CODEAUR
+	      if [ -z "$CODEAUR" ]; then
+		  CODEAUR="https://source.codeaurora.org/external/imx/imx-manifest"
+	      fi
+
+	      echo "I need the name of the bsp" 
+	      echo "Just hit ENTER if you want to use default imx-linux-rocko"  
+	      echo "please enter the name:"
+	      read IMXBSPNAME
+	      if [ -z "$IMXBSPNAME" ]; then
+		  IMXBSPNAME="imx-linux-rocko"
+	      fi
+
+	      echo "I need the version of the bsp" 
+	      echo "Just hit ENTER if you want to use default imx-4.9.88-2.0.0_ga.xml"  
+	      echo "please enter the version:"
+	      read IMXBSPVERSION
+	      if [ -z "$IMXBSPVERSION" ]; then
+		  IMXBSPVERSION="imx-4.9.88-2.0.0_ga.xml"
+	      fi
+
+	      echo "this is the init and sync I will attempt:"
+	      echo "repo init -u $CODEAUR -b $IMXBSPNAME -m $IMXBSPVERSION"
+	      echo "is this correct?  enter Y (to sync), N (to redo), E (to exit)"
+
+	      read YESNOEXIT
+	      
+	      case $YESNOEXIT in 
+		  y|Y ) echo "beginning repo sync"
+			echo "install directory will be ./yocto-imx-bsp"
+			echo "attempting to chown $USER to own $DIR"
+			sudo chown $USER:$USER $DIR
+
+			echo "mkdir $DIR/imx-4.9.88-2.0.0_ga"
+			mkdir -p $DIR/imx-4.9.88-2.0.0_ga
+			echo "cd $DIR/imx-4.9.88-2.0.0_ga"
+			cd $DIR/imx-4.9.88-2.0.0_ga
+
+			echo "initializing repo"
+			repo init -u https://source.codeaurora.org/external/imx/imx-manifest  -b imx-linux-rocko -m imx-4.9.88-2.0.0_ga.xml
+			echo "initialization complete"
+			echo ""
+			echo "syncing repo"
+			echo ""
+			repo sync
+			echo ""
+			echo "repo sync complete"
+	      
+			cat README-IMXBSP | head
+	      
+			echo -e "\n\n\n"
+
+			echo "cat README-IMXBSP to see the complete the options on how to build"
+			STOPLOOP=1
+			break;;
+		  n|N ) STOPLOOP=0
+			continue;;
+		  e|E ) STOPLOOP=1
+			break;;
+		  * ) echo "invalid"
+		      STOPLOOP=0
+		      ;;
+	      esac
+
+	      done
+	      ;;
+	      n|N ) echo "no"
+		    ;;
+	      * ) echo "invalid"
+		  ;;
     esac
 }
 
