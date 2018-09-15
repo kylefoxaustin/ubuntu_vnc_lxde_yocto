@@ -1,13 +1,40 @@
 #!/bin/bash
 
+
+###############################
+#       globals              #
+#############################
+
 # set DEBUGON
 DEBUGON=1
 
+##############################
+#  functions for script    ##
+############################
+
+### debug messaging on or off function
 debug () {
       return $DEBUGON
       }
 
 debug && echo "Beginning of startup.sh script"
+
+### check if repo has been installed
+
+repocheck () {
+	      BINDIRECTORY="/usr/local/bin"
+	      REPOFILE="/usr/local/bin/repo"
+	      echo "Checking for existance of file /usr/local/bin/repo"
+	      echo "REPOFILE = $REPOFILE "
+	      echo "BINDIRECTORY = $BINDIRECTORY "
+	      if [ ! -f "$REPOFILE" ]; then
+		  return 1
+	      else
+		  return 0
+	      fi
+	      }
+
+
 
 
 ###############################
@@ -243,6 +270,12 @@ doSomething_3() {
     case $CONTINUE in 
 	y|Y ) echo "yes"
 
+	      if ( repocheck -eq 1 ); then
+		  echo "repo is not installed"
+		  echo "please go back to main menu and install"
+		  break
+	      fi
+	      
 	      STOPLOOP=0
 	      while [ $STOPLOOP -eq 0 ]
 	      do
@@ -301,7 +334,7 @@ doSomething_3() {
 			echo ""
 			echo "syncing repo"
 			echo ""
-			repo sync
+			/usr/local/bin/repo sync
 			echo ""
 			echo "repo sync complete"
 	      
