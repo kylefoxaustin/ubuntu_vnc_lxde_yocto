@@ -7,32 +7,9 @@
 
 # set DEBUGON
 DEBUGON=1
-
-##############################
-#  functions for script    ##
-############################
-
-### debug messaging on or off function
-debug () {
-      return $DEBUGON
-      }
-
-debug && echo "Beginning of startup.sh script"
-
-### check if repo has been installed
-
-repocheck () {
-	      BINDIRECTORY="/usr/local/bin"
-	      REPOFILE="/usr/local/bin/repo"
-	      echo "Checking for existance of file /usr/local/bin/repo"
-	      echo "REPOFILE = $REPOFILE "
-	      echo "BINDIRECTORY = $BINDIRECTORY "
-	      if [ ! -f "$REPOFILE" ]; then
-		  return 1
-	      else
-		  return 0
-	      fi
-	      }
+BINDIRECTORY="/usr/local/bin"
+REPOFILE="/usr/local/bin/repo"
+TERM=xterm	 
 
 
 
@@ -118,6 +95,7 @@ debug && echo "about to chown USER, -e USERNAME option performed at docker run c
 if [ ! -f /usr/local/chownstatus/chownhasrun.txt ]; then
     debug && echo "This is 1st time container has run, need to chown $USER:$USER $HOME" 
     chown -R --verbose $USER:$USER $HOME
+    chown -R --verbose $USER:$USER $BINDIRECTORY
     mkdir -p /usr/local/chownstatus/
     touch /usr/local/chownstatus/chownhasrun.txt 
 fi
@@ -159,6 +137,41 @@ PASSWORD=
 HTTP_PASSWORD=
 
 
+
+
+  
+
+
+################################
+#  Final Steps               ##
+##############################
+
+debug && echo "HOME ENV was $HOME"
+debug && echo "setting HOME ENV to actual path"
+export HOME=$HOME # don't think this is taking...
+debug && echo "HOME ENV is now $HOME"
+debug && sleep 10
+
+#now add line to bashrc and profile for HOME directory's actual position
+#at this point, ubuntu has HOME=/home.  But if you start container as root (default) and
+#don't place a new user name in the docker run command, then HOME needs to be /root
+#we do the install menu prior to this so that if we are already root, we don't change
+#the bashrc and profiles to 'root'
+
+if [ "$HOME" = "/root" ]; then
+    debug && echo "HOME was /root so about to set bashrc and profile exports"
+    echo 'export HOME=/root/' >> /root/.bashrc
+    source /root/.bashrc
+    echo 'export HOME=/root/' >> /root/.profile
+    source /root/.bashrc
+else
+    debug && echo "HOME was NOT /root so about to set bashrc and profile exports"
+    echo 'export HOME=$HOME' >> /${HOME}/.bashrc
+    source /${HOME}/.bashrc
+    echo 'export HOME=$HOME' >> /${HOME}/.profile
+    source /${HOME}/.bashrc
+fi
+
 #############################################
 # Main interactive install menu           ##
 # 1) setup poky                           ##
@@ -166,13 +179,66 @@ HTTP_PASSWORD=
 # 3) install chosen i.MX bsp              ##
 ############################################
 
-MAXMENU=3
+
 # ===================
 # Script funtionality
 # ===================
 # FUNCTION: dosomething_1
 # note:  for each menu item, you will create a new dosomething_x function
 #        e.g. menu item 2 requires a dosomething_2 function here
+
+##############################
+#  functions for menu script    ##
+############################
+
+### debug messaging on or off function
+debug () {
+      return $DEBUGON
+      }
+
+debug && echo "Beginning of startup.sh script"
+
+### check if repo has been installed
+
+repocheck () {
+    # function returns
+    # "1" in passed-in variable REPOFILE if the repo file is not installed
+    # "2" in passed-in variable REPOFILE if the repo file IS installed
+    
+	      debug && echo "REPOFILE is equal to $REPOFILE " > /dev/stderr
+	      debug && echo "BINDIRECTORY = $BINDIRECTORY " > /dev/stderr
+	      sleep 2
+	      if [ ! -f "$REPOFILE" ]; then
+		  debug && echo "repo does not exist in $BINDIRECTORY" > /dev/stderr
+		  debug && echo "ls the directory for repo" > /dev/stderr
+		  debug && sudo ls $BINDIRECTORY > /dev/stderr      
+		  debug && echo $PATH > /dev/stderr
+		  debug && sleep 2
+		  REPOEXISTS="1"
+	      elif [ -f "$REPOFILE" ]; then
+		  debug && echo "repo found!  repo is installed here: $BINDIRECTORY" > /dev/stderr
+		  debug && echo "ls the directory for repo" > /dev/stderr
+		  debug && sudo ls $BINDIRECTORY > /dev/stderr
+		  debug && echo $PATH > /dev/stderr
+		  debug && sleep 2
+		  REPOEXISTS="2"
+	      fi
+	      }
+
+repoinstall () {
+    # function attempts to install the googleapis.com git-repo file
+    echo "curl //storage.googleapis.com/git-repo-downloads/repo..."
+    sudo curl https://storage.googleapis.com/git-repo-downloads/repo > temprepo
+    echo "curl complete to temprepo file...."
+    echo "attempting to set temprepo file  executable"
+    sudo chmod a+x temprepo
+    echo "copying temprepo into $REPOFILE"
+    sudo cp temprepo $REPOFILE
+    echo "cleaning up temprepo file..."
+    sudo rm temprepo
+    echo "press ENTER to continue"
+    read enterkey
+	  }
 
 doSomething_1() {
     echo "Install Poky?  Enter Y or N"
@@ -232,34 +298,30 @@ doSomething_1() {
 
 doSomething_2() {
     echo "Install repo tool?  Enter Y or N" 
+    debug && echo "i am inside doSomething 2"4
     local CONTINUE=0
+    local REPOEXISTS=""
+    local CHECKREPO=""
     read CONTINUE
     case $CONTINUE in 
-	y|Y ) echo "yes"
-	      BINDIRECTORY="/usr/local/bin"
-	      REPOFILE="/usr/local/bin/repo"
-	      echo "Checking for existance of file /usr/local/bin/repo"
-	      echo "REPOFILE = $REPOFILE "
-	      echo "BINDIRECTORY = $BINDIRECTORY "
-	      if [ ! -f "$REPOFILE" ]; then
-
-		  # Control will enter here if ~/bin doesn't exist.
-		  # now mkdir ~/bin and install ~/bin/repo directory with repo from NXP i.MX recommended yocto packages
-		  echo "REPOFILE wasn't found, attempting to mkdir and curl"
-		  sudo curl https://storage.googleapis.com/git-repo-downloads/repo > $REPOFILE
-		  echo "curl complete..."
-		  echo "attempting to make $REPOFILE executable"
-		  chmod a+x $REPOFILE
-		  echo "press ENTER to continue"
-		  read enterkey
-	      else
-		  echo "repo was found!" 
-		  echo "press ENTER to continue..."
-		  read enterkey
-	      fi
+	y|Y ) debug && echo "yes"
+	      debug && echo "inside dosomething_2 case statement Checking for existance of file /usr/local/bin/repo"
+	      repocheck $REPOEXISTS
+	      debug && echo " $REPOEXISTS is the value of repo_check function"
+	      CHECKREPO=$REPOEXISTS
+	      
+	      if [[ "$CHECKREPO" -eq "1" ]]; then
+		  echo "repo file not found!"
+		  echo "proceeding with repo installation into $REPOFILE"
+		  repoinstall
+	      elif [[ "$CHECKREPO" -eq "2" ]]; then
+		  echo "repo file found!"
+		  echo "file is located in $BINDIRECTORY"
+		  echo "exiting repo install..."
+     	      fi
 	      ;;
 	n|N ) echo "no";;
-	* ) echo "invalid";;
+	* ) echo "invalid option";;
     esac
 }
 
@@ -270,7 +332,7 @@ doSomething_3() {
     case $CONTINUE in 
 	y|Y ) echo "yes"
 
-	      if ( repocheck -eq 1 ); then
+	      if ( ! repocheck -eq 0 ); then
 		  echo "repo is not installed"
 		  echo "please go back to main menu and install"
 		  break
@@ -349,23 +411,22 @@ doSomething_3() {
 			continue;;
 		  e|E ) STOPLOOP=1
 			break;;
-		  * ) echo "invalid"
+		  * ) echo "invalid option"
 		      STOPLOOP=0
 		      ;;
 	      esac
 
 	      done
 	      ;;
-	      n|N ) echo "no"
+	      n|N ) debug && echo "no"
 		    ;;
-	      * ) echo "invalid"
+	      * ) echo "invalid option"
 		  ;;
     esac
 }
 
-
 # ================
-# Script structure
+# Install Menu Script structure
 # ================
 
 
@@ -384,8 +445,13 @@ show_menus() {
 }
 
 # Use menu...
-  # Main menu handler loop
-  while true
+# Main menu handler loop
+
+echo "ABOUT TO START THE MENU INSTALL"
+sleep 2
+
+KEEPLOOPING=0
+while [ $KEEPLOOPING -eq 0 ]
   do
     show_menus
     echo "Enter choice [ 1 - 4 ] "
@@ -395,7 +461,9 @@ show_menus() {
 	1) doSomething_1 ;;
 	2) doSomething_2 ;;
 	3) doSomething_3 ;;
-	4) echo "exiting" ;;
+	4) echo "exiting"
+	   KEEPLOOPING=1
+	   continue;;
 	*) echo -e "${RED}Error...${STD}" && sleep 2
 	   ;;
     esac
@@ -407,38 +475,6 @@ show_menus() {
 	n|N ) break;;
     esac
   done
-  
-
-
-################################
-#  Final Steps               ##
-##############################
-
-debug && echo "HOME ENV was $HOME"
-debug && echo "setting HOME ENV to actual path"
-export HOME=$HOME # don't think this is taking...
-debug && echo "HOME ENV is now $HOME"
-debug && sleep 10
-
-#now add line to bashrc and profile for HOME directory's actual position
-#at this point, ubuntu has HOME=/home.  But if you start container as root (default) and
-#don't place a new user name in the docker run command, then HOME needs to be /root
-#we do the install menu prior to this so that if we are already root, we don't change
-#the bashrc and profiles to 'root'
-
-if [ "$HOME" = "/root" ]; then
-    debug && echo "HOME was /root so about to set bashrc and profile exports"
-    echo 'export HOME=/root/' >> /root/.bashrc
-    source /root/.bashrc
-    echo 'export HOME=/root/' >> /root/.profile
-    source /root/.bashrc
-else
-    debug && echo "HOME was NOT /root so about to set bashrc and profile exports"
-    echo 'export HOME=$HOME' >> /${HOME}/.bashrc
-    source /${HOME}/.bashrc
-    echo 'export HOME=$HOME' >> /${HOME}/.profile
-    source /${HOME}/.bashrc
-fi
 
 
 debug && echo "about to exec /bin/tini -- usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"
