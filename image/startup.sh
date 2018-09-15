@@ -286,11 +286,12 @@ doSomething_3() {
 	      case $YESNOEXIT in 
 		  y|Y ) echo "beginning repo sync"
 			echo "install directory will be ./yocto-imx-bsp"
+					
+			echo "mkdir $DIR/imx-4.9.88-2.0.0_ga"
+			mkdir -p $DIR/imx-4.9.88-2.0.0_ga
 			echo "attempting to chown $USER to own $DIR"
 			sudo chown $USER:$USER $DIR
 
-			echo "mkdir $DIR/imx-4.9.88-2.0.0_ga"
-			mkdir -p $DIR/imx-4.9.88-2.0.0_ga
 			echo "cd $DIR/imx-4.9.88-2.0.0_ga"
 			cd $DIR/imx-4.9.88-2.0.0_ga
 
