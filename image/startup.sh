@@ -10,7 +10,16 @@ DEBUGON=1
 BINDIRECTORY="/usr/local/bin"
 REPOFILE="/usr/local/bin/repo"
 TERM=xterm	 
+POKYDIR="${HOME}/poky"
 
+### debug messaging on or off function
+### this function must always be at the top of the script as it
+### may be used in the script immediately following its definition
+debug () {
+      return $DEBUGON
+      }
+
+debug && echo "Beginning of startup.sh script"
 
 
 
@@ -44,27 +53,45 @@ fi
 # via docker run -e USER         ##
 ##################################
 
+DEBUGON=0
 debug && echo "This is the HOME directory before setting HOME to root $HOME"
 debug && echo "this is the path of current directory:"
 debug && pwd
-debug && sleep 2
+debug && sleep 5
+debug && echo "this is who the user is $USER"
+debug && echo "before performing user=dollarusercolon-root"
+debug && sleep 5
+
 debug && echo "setting USER to root"
+
 USER=${USER:-root}
+debug && echo "this is who the user is $USER"
+debug && echo "that is after doing the user=dollarusercolon-root command"
+debug && sleep 5
+
 debug && echo "setting HOME to root"
 HOME=/root
 if [ "$USER" != "root" ]; then
     debug && echo "starting user not equal to root"
     debug && echo "* enable custom user: $USER"
     useradd --create-home --shell /bin/bash --user-group --groups adm,sudo $USER
+debug && sleep 5
+
     if [ -z "$PASSWORD" ]; then
         debug && echo "Setting default password to \"password\""
         PASSWORD=password
+debug && sleep 5
+
     fi
     HOME=/home/$USER
-    debug && echo "$USER:$PASSWORD" | chpasswd
+    echo "$USER:$PASSWORD" | chpasswd
+debug && sleep 5
+
     cp -r /root/{.gtkrc-2.0,.asoundrc} ${HOME}
     [ -d "/dev/snd" ] && chgrp -R adm /dev/snd
 fi
+
+DEBUGON=1
 
 ######################################
 # clean up supervisord.conf        ##
@@ -146,6 +173,7 @@ HTTP_PASSWORD=
 #  Final Steps               ##
 ##############################
 
+
 debug && echo "HOME ENV was $HOME"
 debug && echo "setting HOME ENV to actual path"
 export HOME=$HOME # don't think this is taking...
@@ -177,6 +205,7 @@ fi
 # 1) setup poky                           ##
 # 2) setup repo (prep for install of bsp) ##
 # 3) install chosen i.MX bsp              ##
+# 4) advanced:  execute a command         ##
 ############################################
 
 
@@ -187,16 +216,13 @@ fi
 # note:  for each menu item, you will create a new dosomething_x function
 #        e.g. menu item 2 requires a dosomething_2 function here
 
+
+
+
 ##############################
 #  functions for menu script    ##
 ############################
 
-### debug messaging on or off function
-debug () {
-      return $DEBUGON
-      }
-
-debug && echo "Beginning of startup.sh script"
 
 ### check if repo has been installed
 
@@ -266,6 +292,7 @@ doSomething_1() {
 		  echo "install complete into $POKYDIR"
 		  echo "press ENTER to continue..."
 		  read enterkey
+		  
 	      elif find $POKYDIR -mindepth 1 | read; then
 		  echo "$POKYDIR exists, is non empty, therefore poky already installed"
 		  echo "press ENTER to continue..."
@@ -328,101 +355,149 @@ doSomething_2() {
 doSomething_3() {
     echo "Install i.MX 8 bsp?  Enter Y or N" 
     local CONTINUE=0
-    read CONTINUE
-    case $CONTINUE in 
-	y|Y ) echo "yes"
-
-	      if ( ! repocheck -eq 0 ); then
-		  echo "repo is not installed"
-		  echo "please go back to main menu and install"
-		  break
-	      fi
+    local REPOEXISTS=""
+    local CHECKREPO=""
+    repocheck $REPOEXISTS
+    CHECKREPO=$REPOEXISTS
+    if [[ "$CHECKREPO" -eq "1" ]]; then
+	  echo "repo is not installed"
+	  echo "please go back to main menu and install the repo (option 2)"
+	  read throwaway
+	  echo "Continue? Hit Enter"
+	  throwaway=0
+	  read throwaway
+	  case "$throwaway" in 
+	      y|Y ) ;;
+	      * )   ;;
+	  esac
+    else
+	read CONTINUE
+	case $CONTINUE in 
+	    y|Y ) echo "yes"
+	      	  STOPLOOP=0
+		  while [ $STOPLOOP -eq 0 ]
+		  do
+		      IMXBSPNAME=0
+		      CODEAUR=0
+		      IMXBSPVERSION=0
+		      DIR=yocto-imx-bsp
+		      YESNOEXIT=0
 	      
-	      STOPLOOP=0
-	      while [ $STOPLOOP -eq 0 ]
-	      do
-		  
-	      IMXBSPNAME=0
-	      CODEAUR=0
-	      IMXBSPVERSION=0
-	      DIR=yocto-imx-bsp
-	      YESNOEXIT=0
+		      echo "I need the source code expository URL"
+		      echo "Just hit ENTER if you want to use default https://source.codeaurora.org/external/imx/imx-manifest"  
+		      echo "please enter the URL:"
+		      read CODEAUR
+		      if [ -z "$CODEAUR" ]; then
+			  CODEAUR="https://source.codeaurora.org/external/imx/imx-manifest"
+		      fi
+
+		      echo "I need the name of the bsp" 
+		      echo "Just hit ENTER if you want to use default imx-linux-rocko"  
+		      echo "please enter the name:"
+		      read IMXBSPNAME
+		      if [ -z "$IMXBSPNAME" ]; then
+			  IMXBSPNAME="imx-linux-rocko"
+		      fi
+
+		      echo "I need the version of the bsp" 
+		      echo "Just hit ENTER if you want to use default imx-4.9.88-2.0.0_ga.xml"  
+		      echo "please enter the version:"
+		      read IMXBSPVERSION
+		      if [ -z "$IMXBSPVERSION" ]; then
+			  IMXBSPVERSION="imx-4.9.88-2.0.0_ga.xml"
+		      fi
+
+		      echo "this is the init and sync I will attempt:"
+		      echo "repo init -u $CODEAUR -b $IMXBSPNAME -m $IMXBSPVERSION"
+		      echo "is this correct?  enter Y (to sync), N (to redo), E (to exit)"
+
+		      read YESNOEXIT
 	      
-	      echo "I need the source code expository URL"
-	      echo "Just hit ENTER if you want to use default https://source.codeaurora.org/external/imx/imx-manifest"  
-	      echo "please enter the URL:"
-	      read CODEAUR
-	      if [ -z "$CODEAUR" ]; then
-		  CODEAUR="https://source.codeaurora.org/external/imx/imx-manifest"
-	      fi
-
-	      echo "I need the name of the bsp" 
-	      echo "Just hit ENTER if you want to use default imx-linux-rocko"  
-	      echo "please enter the name:"
-	      read IMXBSPNAME
-	      if [ -z "$IMXBSPNAME" ]; then
-		  IMXBSPNAME="imx-linux-rocko"
-	      fi
-
-	      echo "I need the version of the bsp" 
-	      echo "Just hit ENTER if you want to use default imx-4.9.88-2.0.0_ga.xml"  
-	      echo "please enter the version:"
-	      read IMXBSPVERSION
-	      if [ -z "$IMXBSPVERSION" ]; then
-		  IMXBSPVERSION="imx-4.9.88-2.0.0_ga.xml"
-	      fi
-
-	      echo "this is the init and sync I will attempt:"
-	      echo "repo init -u $CODEAUR -b $IMXBSPNAME -m $IMXBSPVERSION"
-	      echo "is this correct?  enter Y (to sync), N (to redo), E (to exit)"
-
-	      read YESNOEXIT
-	      
-	      case $YESNOEXIT in 
-		  y|Y ) echo "beginning repo sync"
-			echo "install directory will be ./yocto-imx-bsp"
+		      case $YESNOEXIT in 
+			  y|Y ) echo "beginning repo sync"
+				echo "install directory will be ./yocto-imx-bsp"
 					
-			echo "mkdir $DIR/imx-4.9.88-2.0.0_ga"
-			mkdir -p $DIR/imx-4.9.88-2.0.0_ga
-			echo "attempting to chown $USER to own $DIR"
-			sudo chown $USER:$USER $DIR
+				echo "mkdir $DIR/imx-4.9.88-2.0.0_ga"
+				mkdir -p $DIR/imx-4.9.88-2.0.0_ga
+				echo "attempting to chown $USER to own $DIR"
+				sudo chown $USER:$USER $DIR
 
-			echo "cd $DIR/imx-4.9.88-2.0.0_ga"
-			cd $DIR/imx-4.9.88-2.0.0_ga
+				echo "cd $DIR/imx-4.9.88-2.0.0_ga"
+				cd $DIR/imx-4.9.88-2.0.0_ga
 
-			echo "initializing repo"
-			repo init -u https://source.codeaurora.org/external/imx/imx-manifest  -b imx-linux-rocko -m imx-4.9.88-2.0.0_ga.xml
-			echo "initialization complete"
-			echo ""
-			echo "syncing repo"
-			echo ""
-			/usr/local/bin/repo sync
-			echo ""
-			echo "repo sync complete"
+				echo "initializing repo"
+				repo init -u https://source.codeaurora.org/external/imx/imx-manifest  -b imx-linux-rocko -m imx-4.9.88-2.0.0_ga.xml
+				echo "initialization complete"
+				echo ""
+				echo "syncing repo"
+				echo ""
+				/usr/local/bin/repo sync
+				echo ""
+				echo "repo sync complete"
 	      
-			cat README-IMXBSP | head
+				cat README-IMXBSP | head
 	      
-			echo -e "\n\n\n"
+				echo -e "\n\n\n"
 
-			echo "cat README-IMXBSP to see the complete the options on how to build"
-			STOPLOOP=1
-			break;;
-		  n|N ) STOPLOOP=0
-			continue;;
-		  e|E ) STOPLOOP=1
-			break;;
-		  * ) echo "invalid option"
-		      STOPLOOP=0
-		      ;;
-	      esac
+				echo "cat README-IMXBSP to see the complete the options on how to build"
+				STOPLOOP=1
+				break;;
+			  n|N ) STOPLOOP=0
+				continue;;
+			  e|E ) STOPLOOP=1
+				break;;
+			  * ) echo "invalid option"
+			      STOPLOOP=0
+			      ;;
+		      esac
 
-	      done
-	      ;;
-	      n|N ) debug && echo "no"
-		    ;;
-	      * ) echo "invalid option"
+		  done
 		  ;;
-    esac
+	    n|N ) debug && echo "no"
+		  ;;
+	    * ) echo "invalid option"
+		;;
+	esac
+    fi
+    
+}
+
+doSomething_4() {
+    echo "For advanced users only"
+    echo "on the next line you can write any ubuntu command you wish and it will be executed"
+    echo "note: user with caution.  There are no protections against mis-use or accidental mistakes"
+    echo "      ALL commands you enter WILL execute and can damage or destroy the container"
+    
+    echo ""
+    echo ""
+    local KEEPLOOPING=0
+    while [ "$KEEPLOOPING" -eq "0" ]
+    do
+	
+	printf "Enter Your Command: "
+	read MYCOMMANDS 
+	echo "execute the following commands: \"$MYCOMMANDS\" ? enter Y or N"
+	read yesno
+	case "$yesno" in 
+	    y|Y )
+		eval $MYCOMMANDS
+		;;
+	    n|N )
+		;;
+	esac
+	
+	echo ""
+	echo "execute another command?  enter Y or N"
+	read yesno
+	case "$yesno" in 
+	    y|Y )
+		KEEPLOOPING=0
+		;;
+	    n|N )
+		KEEPLOOPING=1
+		;;
+	esac
+    done
 }
 
 # ================
@@ -440,12 +515,14 @@ show_menus() {
     echo "  1. Install Yocto Poky"
     echo "  2. Install Repo"
     echo "  3. pull i.MX image"
-    echo "  4. Exit"
+    echo "  4. Advanced - execute any command"
+    echo "  5. Exit"
     echo ""
 }
 
 # Use menu...
 # Main menu handler loop
+
 
 echo "ABOUT TO START THE MENU INSTALL"
 sleep 2
@@ -454,20 +531,21 @@ KEEPLOOPING=0
 while [ $KEEPLOOPING -eq 0 ]
   do
     show_menus
-    echo "Enter choice [ 1 - 4 ] "
+    echo "Enter choice [ 1 - 5 ] "
     menuchoice=0
     read menuchoice
     case $menuchoice in
 	1) doSomething_1 ;;
 	2) doSomething_2 ;;
 	3) doSomething_3 ;;
-	4) echo "exiting"
+	4) doSomething_4 ;;
+	5) echo "exiting"
 	   KEEPLOOPING=1
 	   continue;;
 	*) echo -e "${RED}Error...${STD}" && sleep 2
 	   ;;
     esac
-    echo "Perform another install? (y/n)"
+    echo "Return to the Main Menu? (y/n)"
     yesno=0
     read yesno
     case "$yesno" in 
