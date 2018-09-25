@@ -92,13 +92,11 @@ fi
 # via docker run -e USER         ##
 ##################################
 
-DEBUGON=0
 debug && echo "This is the HOME directory before setting HOME to root $HOME"
 debug && echo "this is the path of current directory:"
 debug && pwd
 debug && sleep 5
 debug && echo "this is who the user is $USER"
-debug && echo "before performing user=dollarusercolon-root"
 debug && sleep 5
 
 debug && echo "setting USER to root"
@@ -129,7 +127,6 @@ debug && sleep 5
     [ -d "/dev/snd" ] && chgrp -R adm /dev/snd
 fi
 
-DEBUGON=1
 
 ######################################
 # clean up supervisord.conf        ##
@@ -202,11 +199,6 @@ PASSWORD=
 HTTP_PASSWORD=
 
 
-
-
-  
-
-
 ################################
 #  Final Steps               ##
 ##############################
@@ -214,7 +206,6 @@ HTTP_PASSWORD=
 
 debug && echo "HOME ENV was $HOME"
 debug && echo "setting HOME ENV to actual path"
-export HOME=$HOME # don't think this is taking...
 debug && echo "HOME ENV is now $HOME"
 debug && sleep 10
 
