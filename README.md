@@ -1,4 +1,39 @@
-# This is a cloned project of the original fcwu/docker-ubuntu-vnc-desktop.
+# ubuntu_vnc_lxde_yocto container
+
+# Overview
+
+
+the purpose of the script is to provide a full LXDE desktop GUI environment within the
+container, accessible by your remote host system by a VNC viewer (127.0.0.1:5900)
+
+The container serves dual purposes:
+1) enable a full ubuntu 18 installation with LXDE GUI + sound so you can do anything with
+   the container you would normally do with Ubuntu
+2) an interactive menu that enables via terminal to install Yocto projects and i.MX BSPs
+
+eventually the intent is to port this container to run natively on i.MX 8 or any
+i.MX processor that can run docker-ce engine.  That way you can pull down this container
+and use the i.MX 8 processor to drive a local screen.  In essence, it enables you to pull
+the container onto i.MX 8 and run Ubuntu with just two commands (pull, then run) vs a full
+native install
+
+This container has been tested on:
+ Acer Aspire E 17 laptop running Ubuntu 18
+ Acer Aspire E 17 laptop running Windows 10 + VirtualBox with a Ubuntu VM (docker on VM)
+
+ This script will also enable the user to specify a USER name and PASSWORD.
+ These parameters are passed to the startup.sh by the docker run command itself, not via this script's argument processing capabilities
+ that is why you see USER and PASSWORD processed below without any apparent checking for those arguments to be passed into the shell itself.
+ that is all handled by docker...
+
+ you do not have to include a USER name/Password or VNC or SSL configuration unless you so choose
+
+# Maintainer:  kyle fox (github.com/kylefoxaustin)
+
+# source for LXDE_VNC docker image:  https://github.com/fcwu/docker-ubuntu-vnc-desktop
+ and many thanks to fcwu (aka Doro Wu), fcwu.tw@gmail.com for creating the initial
+ LXDE_VNC docker image
+
 
 # I have updated to my purposes which is to provide a container which has the following base characteristics:
 1) is running Ubuntu so that it can be updated by the enduser... flexibility
