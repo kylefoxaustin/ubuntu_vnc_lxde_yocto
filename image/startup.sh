@@ -1,5 +1,39 @@
 #!/bin/bash
 
+##### ubuntu_vnc_lxde_yocto container ######
+
+# This is the ENTRYPOINT script which is run in the docker container ubuntu_vnc_lxde_yocto
+# the purpose of the script is to provide a full LXDE desktop GUI environment within the
+# container, accessible by your remote host system by a VNC viewer (127.0.0.1:5900)
+#
+# The container serves dual purposes:
+# 1) enable a full ubuntu 18 installation with LXDE GUI + sound so you can do anything with
+#    the container you would normally do with Ubuntu
+# 2) an interactive menu that enables via terminal to install Yocto projects and i.MX BSPs
+#
+# eventually the intent is to port this container to run natively on i.MX 8 or any
+# i.MX processor that can run docker-ce engine.  That way you can pull down this container
+# and use the i.MX 8 processor to drive a local screen.  In essence, it enables you to pull
+# the container onto i.MX 8 and run Ubuntu with just two commands (pull, then run) vs a full
+# native install
+#
+# This container has been tested on:
+# Acer Aspire E 17 laptop running Ubuntu 18
+# Acer Aspire E 17 laptop running Windows 10 + VirtualBox with a Ubuntu VM (docker on VM)
+#
+# This script will also enable the user to specify a USER name and PASSWORD.
+# These parameters are passed to the startup.sh by the docker run command itself, not via this script's argument processing capabilities
+# that is why you see USER and PASSWORD processed below without any apparent checking for those arguments to be passed into the shell itself.
+# that is all handled by docker...
+#
+# you do not have to include a USER name/Password or VNC or SSL configuration unless you so choose
+#
+# Maintainer:  kyle fox (github.com/kylefoxaustin)
+#
+# source for LXDE_VNC docker image:  https://github.com/fcwu/docker-ubuntu-vnc-desktop
+# and many thanks to fcwu (aka Doro Wu), fcwu.tw@gmail.com for creating the initial
+# LXDE_VNC docker image
+
 
 ###############################
 #       globals              #
@@ -15,6 +49,11 @@ POKYDIR="${HOME}/poky"
 ### debug messaging on or off function
 ### this function must always be at the top of the script as it
 ### may be used in the script immediately following its definition
+### within the body of this script, if a debug message is to be run
+### it will have the form of "debug && <command to run>
+### if DEBUGON=0 then the <command to run> will be executed
+### if DEBUGON=1 then the <command to run> will be ignored
+
 debug () {
       return $DEBUGON
       }
@@ -66,7 +105,6 @@ debug && echo "setting USER to root"
 
 USER=${USER:-root}
 debug && echo "this is who the user is $USER"
-debug && echo "that is after doing the user=dollarusercolon-root command"
 debug && sleep 5
 
 debug && echo "setting HOME to root"
@@ -266,6 +304,30 @@ repoinstall () {
     read enterkey
 	  }
 
+poky_init_build_env () {
+
+    # if this function is called then poky is installed already
+    # so don't need to check if poky exists or not
+    
+    local TEMPPOKYDIR=""
+    TEMPPOKYDIR=$1
+    echo "this is the temppokydir value"
+    echo $TEMPPOKYDIR
+    echo "Run the Yocto build environment script (oe-init-build-env)? Enter Y or N"
+    read RUNENV
+    case $RUNENV in 
+	y|Y ) debug && echo "yes"
+	      source $TEMPPOKYDIR/oe-init-build-env
+	      echo "oe-init-build-env completed"
+	      echo "press ENTER to continue..."
+	      read enterkey	       ;;
+	n|N ) echo "Exiting Poky init build environment setup...";;
+	* ) echo "invalid option";;
+    esac
+    
+}
+
+
 doSomething_1() {
     echo "Install Poky?  Enter Y or N"
     local CONTINUE=0
@@ -280,7 +342,7 @@ doSomething_1() {
 		  mkdir -p $POKYDIR
 		  echo $PWD
 		  echo "beginning clone...:"
-		  git clone git://git.yoctoproject.org/poky $POKYDIR
+		  git clone --progress git://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
@@ -292,7 +354,7 @@ doSomething_1() {
 		  echo "install complete into $POKYDIR"
 		  echo "press ENTER to continue..."
 		  read enterkey
-		  
+		  poky_init_build_env $POKYDIR
 	      elif find $POKYDIR -mindepth 1 | read; then
 		  echo "$POKYDIR exists, is non empty, therefore poky already installed"
 		  echo "press ENTER to continue..."
@@ -301,7 +363,7 @@ doSomething_1() {
 		  echo "$POKYDIR exists but directory does not contain anything"
 		  echo "proceeding with installation into $POKYDIR"
 		  echo "beginning clone...:"
-		  git clone git://git.yoctoproject.org/poky $POKYDIR
+		  git clone --progress git://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
@@ -312,6 +374,7 @@ doSomething_1() {
 		  echo "install complete..."
 		  echo "press ENTER to continue..."
 		  read enterkey
+		  poky_init_build_env $POKYDIR
 	      fi
 	      ;;
 	n|N ) echo "no";;
