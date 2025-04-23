@@ -2,7 +2,6 @@
 
 # Overview
 
-
 the purpose of the script is to provide a full LXDE desktop GUI environment within the
 container, accessible by your remote host system by a VNC viewer (127.0.0.1:5900)
 
