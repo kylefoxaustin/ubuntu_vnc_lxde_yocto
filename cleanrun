@@ -3,3 +3,4 @@
 docker rm $(docker ps -aq)
 make build run
 exit 0
+
