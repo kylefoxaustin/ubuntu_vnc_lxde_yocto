@@ -2,6 +2,7 @@
 
 ##### ubuntu_vnc_lxde_yocto container ######
 
+
 # This is the ENTRYPOINT script which is run in the docker container ubuntu_vnc_lxde_yocto
 # the purpose of the script is to provide a full LXDE desktop GUI environment within the
 # container, accessible by your remote host system by a VNC viewer (127.0.0.1:5900)
