@@ -1,1 +1,26 @@
-web/node_modules
+# Keep the build context small and avoid baking repo/CI metadata into layers.
+# Previously this listed only web/node_modules, so .git (and everything else)
+# was uploaded to the daemon on every build.
+.git
+.gitignore
+.github
+
+# Docs and screenshots are not needed to build the image.
+*.md
+screenshots/
+ssl/
+
+# Node artefacts, in case anyone reintroduces a frontend build.
+web/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Python bytecode
+__pycache__/
+*.py[cod]

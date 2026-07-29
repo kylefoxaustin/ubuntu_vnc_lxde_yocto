@@ -1,6 +1,20 @@
 #!/bin/bash
+#
+# Rebuild and run from scratch.
+#
+# The previous version of this script was:
+#
+#     docker rm $(docker ps -aq)
+#     make build run
+#
+# `docker ps -aq` lists EVERY container on the host, so that first line deleted
+# all of them -- other projects, other people's work, anything stopped that
+# someone intended to keep. It also failed noisily with "docker rm requires at
+# least 1 argument" whenever there were none. Both are fixed by scoping the
+# removal to this project's own container, which `make stop` does.
 
-docker rm $(docker ps -aq)
-make build run
-exit 0
+set -euo pipefail
 
+make stop
+make build
+make run

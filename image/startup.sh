@@ -69,11 +69,18 @@ debug && echo "Beginning of startup.sh script"
 
 if [ -n "$VNC_PASSWORD" ]; then
     debug && echo "starting set password section"
-    debug && echo -n "$VNC_PASSWORD" > /.password1
-    x11vnc -storepasswd $(cat /.password1) /.password2
-    chmod 400 /.password*
+    # Was: the plaintext password was written to /.password1 and LEFT THERE for
+    # the life of the container. Hand it to x11vnc directly instead -- only the
+    # hashed /.password2 needs to persist.
+    x11vnc -storepasswd "$VNC_PASSWORD" /.password2
+    chmod 400 /.password2
+    # Remove any plaintext file left behind by an older image on a reused volume.
+    rm -f /.password1
     sed -i 's/^command=x11vnc.*/& -rfbauth \/.password2/' /etc/supervisor/conf.d/supervisord.conf
     export VNC_PASSWORD=
+else
+    echo "WARNING: no VNC_PASSWORD set. If port 5900 is published, this desktop" >&2
+    echo "         is reachable by anyone who can connect to it, unauthenticated." >&2
 fi
 
 
@@ -172,26 +179,27 @@ debug && echo "about to sed -i nginx workers"
 sed -i 's|worker_processes .*|worker_processes 1;|' /etc/nginx/nginx.conf
 
 # nginx ssl
+# (the debug messages here used to say the OPPOSITE of the branch they are in --
+#  "SSL has not been chosen" printed only when SSL *had* been chosen)
 if [ -n "$SSL_PORT" ] && [ -e "/etc/nginx/ssl/nginx.key" ]; then
-    debug && echo "SSL has not been chosen on docker run commmand"
-    debug && echo "removing SSL port from /etc/nginx/sites-enabled/default"  
+    debug && echo "SSL_PORT set and key present: enabling SSL on $SSL_PORT"
 	sed -i 's|#_SSL_PORT_#\(.*\)443\(.*\)|\1'$SSL_PORT'\2|' /etc/nginx/sites-enabled/default
 	sed -i 's|#_SSL_PORT_#||' /etc/nginx/sites-enabled/default
 fi
 
 # nginx http base authentication
 if [ -n "$HTTP_PASSWORD" ]; then
-    debug && echo "HTTP_PASSWORD was not chosen on docker run command"
-    debug && echo "* enable HTTP base authentication"
+    debug && echo "HTTP_PASSWORD set: enabling HTTP basic authentication"
     htpasswd -bc /etc/nginx/.htpasswd $USER $HTTP_PASSWORD
 	sed -i 's|#_HTTP_PASSWORD_#||' /etc/nginx/sites-enabled/default
+else
+    echo "WARNING: no HTTP_PASSWORD set. The web desktop on port 80 is served" >&2
+    echo "         without authentication to anyone who can reach it." >&2
 fi
 
-# novnc websockify
-debug && echo "setting hard link, websockify" 
-ln -s /usr/local/lib/web/frontend/static/websockify /usr/local/lib/web/frontend/static/novnc/utils/websockify
-debug && echo "about to chmod to executable the following: /usr/local/lib/web/frontend/static/websockify/run"
-chmod +x /usr/local/lib/web/frontend/static/websockify/run
+# websockify now comes from the distro package and is launched directly by
+# supervisord, so the old symlink-and-chmod dance into the vendored copy is gone.
+# (It also used `ln -s` rather than `ln -sf`, so it failed on container restart.)
 
 # clearup
 debug && echo "clearup.  about to set password and http_password to null"
@@ -216,19 +224,22 @@ debug && sleep 10
 #we do the install menu prior to this so that if we are already root, we don't change
 #the bashrc and profiles to 'root'
 
-if [ "$HOME" = "/root" ]; then
-    debug && echo "HOME was /root so about to set bashrc and profile exports"
-    echo 'export HOME=/root/' >> /root/.bashrc
-    source /root/.bashrc
-    echo 'export HOME=/root/' >> /root/.profile
-    source /root/.bashrc
-else
-    debug && echo "HOME was NOT /root so about to set bashrc and profile exports"
-    echo 'export HOME=$HOME' >> /${HOME}/.bashrc
-    source /${HOME}/.bashrc
-    echo 'export HOME=$HOME' >> /${HOME}/.profile
-    source /${HOME}/.bashrc
-fi
+# Three bugs were fixed here:
+#   1. The non-root branch appended the SINGLE-QUOTED string 'export HOME=$HOME',
+#      so the line landed in .bashrc verbatim and expanded to a no-op
+#      self-assignment -- HOME was never actually corrected for a custom user.
+#   2. It wrote to /${HOME}/.bashrc, i.e. //home/<user>/.bashrc (leading slash
+#      plus an already-absolute path).
+#   3. Both branches appended unconditionally on every container start, so the
+#      files grew by two lines each time the container was restarted.
+debug && echo "pinning HOME=$HOME in shell startup files"
+for _rc in "$HOME/.bashrc" "$HOME/.profile"; do
+    touch "$_rc"
+    if ! grep -q "^export HOME=$HOME\$" "$_rc" 2>/dev/null; then
+        echo "export HOME=$HOME" >> "$_rc"
+    fi
+done
+unset _rc
 
 #############################################
 # Main interactive install menu           ##
@@ -334,7 +345,7 @@ doSomething_1() {
 		  mkdir -p $POKYDIR
 		  echo $PWD
 		  echo "beginning clone...:"
-		  git clone --progress git://git.yoctoproject.org/poky $POKYDIR
+		  git clone --progress https://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
@@ -355,7 +366,7 @@ doSomething_1() {
 		  echo "$POKYDIR exists but directory does not contain anything"
 		  echo "proceeding with installation into $POKYDIR"
 		  echo "beginning clone...:"
-		  git clone --progress git://git.yoctoproject.org/poky $POKYDIR
+		  git clone --progress https://git.yoctoproject.org/poky $POKYDIR
 		  echo $PWD
 		  cd $POKYDIR
 		  echo $PWD
@@ -380,7 +391,7 @@ doSomething_1() {
 
 doSomething_2() {
     echo "Install repo tool?  Enter Y or N" 
-    debug && echo "i am inside doSomething 2"4
+    debug && echo "i am inside doSomething 2"
     local CONTINUE=0
     local REPOEXISTS=""
     local CHECKREPO=""
@@ -579,35 +590,63 @@ show_menus() {
 # Main menu handler loop
 
 
-echo "ABOUT TO START THE MENU INSTALL"
-sleep 2
+run_install_menu() {
+    echo "ABOUT TO START THE MENU INSTALL"
+    sleep 2
 
-KEEPLOOPING=0
-while [ $KEEPLOOPING -eq 0 ]
-  do
-    show_menus
-    echo "Enter choice [ 1 - 5 ] "
-    menuchoice=0
-    read menuchoice
-    case $menuchoice in
-	1) doSomething_1 ;;
-	2) doSomething_2 ;;
-	3) doSomething_3 ;;
-	4) doSomething_4 ;;
-	5) echo "exiting"
-	   KEEPLOOPING=1
-	   continue;;
-	*) echo -e "${RED}Error...${STD}" && sleep 2
-	   ;;
-    esac
-    echo "Return to the Main Menu? (y/n)"
-    yesno=0
-    read yesno
-    case "$yesno" in 
-	y|Y ) continue;;
-	n|N ) break;;
-    esac
-  done
+    local KEEPLOOPING=0
+    while [ $KEEPLOOPING -eq 0 ]
+      do
+        show_menus
+        echo "Enter choice [ 1 - 5 ] "
+        menuchoice=0
+        # `|| break` so an EOF (stdin closed mid-session) ends the loop rather
+        # than spinning on it forever.
+        read menuchoice || break
+        case $menuchoice in
+    	1) doSomething_1 ;;
+    	2) doSomething_2 ;;
+    	3) doSomething_3 ;;
+    	4) doSomething_4 ;;
+    	5) echo "exiting"
+    	   KEEPLOOPING=1
+    	   continue;;
+    	*) echo -e "${RED}Error...${STD}" && sleep 2
+    	   ;;
+        esac
+        echo "Return to the Main Menu? (y/n)"
+        yesno=0
+        read yesno || break
+        case "$yesno" in
+    	y|Y ) continue;;
+    	n|N ) break;;
+        esac
+      done
+}
+
+# `/startup.sh menu` re-runs just the installer menu inside an already-running
+# container (supervisord is PID 1 there, so do not exec it again).
+if [ "${1:-}" = "menu" ]; then
+    run_install_menu
+    exit 0
+fi
+
+# Only offer the menu when there is a terminal to answer it.
+#
+# It used to run unconditionally. With no TTY -- `docker run -d`, or anything
+# orchestrated -- every `read` returned EOF immediately, so the loop printed
+# "Error...", redrew the menu, and repeated forever at 100% CPU, NEVER REACHING
+# the `exec supervisord` below. The desktop, nginx and VNC therefore never
+# started and the container could not become healthy. Only `docker run -i`
+# happened to work, which is what the old Makefile used.
+#
+# Skipping it is the right default: the services are the point of the container.
+if [ -t 0 ]; then
+    run_install_menu
+else
+    echo "No TTY on stdin: skipping the interactive Yocto install menu."
+    echo "Use 'docker run -it ...' for it, or 'docker exec -it <name> /startup.sh menu'."
+fi
 
 
 debug && echo "about to exec /bin/tini -- usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"

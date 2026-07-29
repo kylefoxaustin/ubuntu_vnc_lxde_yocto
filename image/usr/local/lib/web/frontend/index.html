@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+  Landing page for ubuntu_vnc_lxde_yocto.
+
+  This replaces the compiled Vue single-page app that used to be built into
+  /usr/local/lib/web/frontend by a Node 8 + yarn builder stage. That stage is
+  gone; noVNC's own client is served directly from static/ instead.
+
+  path=websockify matches the nginx `location = /websockify` proxy, which
+  forwards to websockify on 6081 and from there to x11vnc on 5900.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ubuntu_vnc_lxde_yocto</title>
+  <meta http-equiv="refresh" content="0; url=static/vnc.html?path=websockify&amp;autoconnect=1&amp;resize=scale">
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: #1d1f21; color: #c5c8c6; margin: 0;
+           display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; text-align: center; }
+    main { padding: 2rem; max-width: 34rem; }
+    a { color: #81a2be; }
+    code { background: #282a2e; padding: .1rem .35rem; border-radius: 3px; }
+    .muted { color: #969896; font-size: .9rem; margin-top: 1.5rem; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Connecting to the desktop&hellip;</h1>
+    <p>
+      If nothing happens,
+      <a href="static/vnc.html?path=websockify&amp;autoconnect=1&amp;resize=scale">open the noVNC client directly</a>.
+    </p>
+    <p class="muted">
+      This session is <strong>not authenticated</strong> unless the container was
+      started with <code>-e HTTP_PASSWORD=&hellip;</code> (web) or
+      <code>-e VNC_PASSWORD=&hellip;</code> (port 5900). Do not expose either port
+      to an untrusted network without one.
+    </p>
+  </main>
+</body>
+</html>

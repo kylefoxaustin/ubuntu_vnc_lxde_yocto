@@ -1,123 +1,126 @@
 ################################################################################
-# base system
+# ubuntu_vnc_lxde_yocto
+#
+# An Ubuntu 18.04 LXDE desktop, reachable from a browser (noVNC) or a VNC
+# viewer, preloaded with the host packages needed to build Yocto / NXP i.MX
+# BSPs.
+#
+# The base is deliberately still ubuntu:18.04: the Yocto host-package set this
+# image exists to provide is the one that release shipped. 18.04 is past its
+# standard support window -- see SECURITY.md for what that costs and what to do
+# about it.
+#
+# Maintainer: kylefoxaustin (github.com/kylefoxaustin)
+# Derived from https://github.com/fcwu/docker-ubuntu-vnc-desktop by
+# Doro Wu (fcwu.tw@gmail.com) -- thank you.
 ################################################################################
 
-FROM ubuntu:18.04 as system
-
-ARG localbuild
-RUN if [ "x$localbuild" != "x" ]; then sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; fi
-
-# && add-apt-repository ppa:fcwu-tw/apps  x11vnc
-# built-in packages
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends software-properties-common curl apache2-utils \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends --allow-unauthenticated \
-        supervisor nginx sudo vim-tiny net-tools zenity xz-utils \
-        dbus-x11 x11-utils alsa-utils \
-        mesa-utils libgl1-mesa-dri \
-        lxde xvfb x11vnc \
-        gtk2-engines-murrine gnome-themes-standard gtk2-engines-pixbuf gtk2-engines-murrine arc-theme \
-        firefox chromium-browser \
-        ttf-ubuntu-font-family ttf-wqy-zenhei \
-    && add-apt-repository -r ppa:fcwu-tw/apps \
-    && apt-get autoclean \
-    && apt-get autoremove \
-    && rm -rf /var/lib/apt/lists/*
-# Additional packages require ~600MB
-# libreoffice  pinta language-pack-zh-hant language-pack-gnome-zh-hant firefox-locale-zh-hant libreoffice-l10n-zh-tw
-
-# tini for subreap                                   
-ARG TINI_VERSION=v0.18.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /bin/tini
-RUN chmod +x /bin/tini
-
-# ffmpeg
-RUN mkdir -p /usr/local/ffmpeg \
-    && curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-64bit-static.tar.xz | tar xJvf - -C /usr/local/ffmpeg/ --strip 1
-
-# python library
-COPY image/usr/local/lib/web/backend/requirements.txt /tmp/
-RUN apt-get update \
-    && dpkg-query -W -f='${Package}\n' > /tmp/a.txt \
-    && apt-get install -y python-pip python-dev build-essential \
-	&& pip install setuptools wheel && pip install -r /tmp/requirements.txt \
-    && dpkg-query -W -f='${Package}\n' > /tmp/b.txt \
-    && apt-get remove -y `diff --changed-group-format='%>' --unchanged-group-format='' /tmp/a.txt /tmp/b.txt | xargs` \
-    && apt-get autoclean -y \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/* /tmp/a.txt /tmp/b.txt
-
-# start installing Yocto base host packages, git, tar, python
-RUN apt-get update && apt-get install -y --no-install-recommends git tar python3
-
-# now install additional yocto base host packages
-RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gpg-agent gcc-multilib \
-     build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
-     xz-utils debianutils iputils-ping libsdl1.2-dev xterm
-
-RUN apt-get update
-
-# now install from the NXP i.MX recommended yocto packages
-RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gcc-multilib \
- build-essential chrpath socat libsdl1.2-dev libsdl1.2-dev xterm sed cvs subversion coreutils texi2html \
-docbook-utils python-pysqlite2 help2man make gcc g++ desktop-file-utils \
-libgl1-mesa-dev libglu1-mesa-dev mercurial autoconf automake groff curl lzop asciidoc 
-
-RUN apt-get update
-
-# now install uboot tools from NXP i.MX recommended yocto packages
-RUN apt-get update && apt-get install -y --no-install-recommends u-boot-tools
-
-RUN apt-get update
-
-# now install emacs
-RUN apt-get update && apt-get install -y --no-install-recommends emacs
-
-RUN apt-get update
-
-
-################################################################################
-# builder
-################################################################################
-FROM ubuntu:16.04 as builder
-
-ARG localbuild
-RUN if [ "x$localbuild" != "x" ]; then sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; fi
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates
-
-# nodejs
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - \
-    && apt-get install -y nodejs
-
-# yarn
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
-    && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
-    && apt-get update \
-    && apt-get install -y yarn
-
-# build frontend
-COPY web /src/web
-RUN cd /src/web \
-    && yarn \
-    && npm run build
-
-################################################################################
-# merge
-################################################################################
-FROM system
+FROM ubuntu:18.04
 LABEL maintainer="kylefoxaustin"
 
-COPY --from=builder /src/web/dist/ /usr/local/lib/web/frontend/
-COPY image /
+# ARG rather than ENV: keeps noninteractive out of the running container's env.
+ARG DEBIAN_FRONTEND=noninteractive
 
-EXPOSE 80
-WORKDIR /root 
-ENV TERM=xterm
-ENV HOME=/root/ \
+# Optional closer mirror for local builds (make build passes this).
+ARG localbuild
+RUN if [ -n "$localbuild" ]; then \
+        sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; \
+    fi
+
+################################################################################
+# Desktop, VNC and web stack.
+#
+# One apt layer. The previous Dockerfile ran `apt-get update` five separate
+# times and installed build-essential/gcc-multilib three times over.
+#
+# websockify comes from apt instead of the vendored copy under web/static, so it
+# gets distro security updates and contributes no dependency manifest. Same for
+# supervisor, which used to be pip-installed at a pinned 3.2.0 on top of the
+# apt one.
+#
+# --allow-unauthenticated has been REMOVED: it disabled package signature
+# verification for everything installed here.
+################################################################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        supervisor nginx sudo net-tools ca-certificates curl apache2-utils \
+        vim-tiny zenity xz-utils \
+        dbus-x11 x11-utils alsa-utils \
+        mesa-utils libgl1-mesa-dri \
+        lxde xvfb x11vnc websockify \
+        gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard arc-theme \
+        firefox chromium-browser \
+        fonts-ubuntu ttf-wqy-zenhei \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+################################################################################
+# Yocto / NXP i.MX host packages.
+#
+# The union of the four overlapping lists the previous Dockerfile spread across
+# five layers, deduplicated. Sources: the Yocto Project quick-start host
+# requirements and NXP's i.MX Yocto user guide.
+################################################################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        asciidoc autoconf automake build-essential chrpath coreutils cpio cvs \
+        debianutils desktop-file-utils diffstat docbook-utils emacs g++ gawk \
+        gcc gcc-multilib git git-core gpg-agent groff help2man iputils-ping \
+        libgl1-mesa-dev libglu1-mesa-dev libsdl1.2-dev lzop make mercurial \
+        python python-pysqlite2 python3 python3-pexpect python3-pip sed socat \
+        subversion tar texi2html texinfo u-boot-tools unzip wget xterm \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+################################################################################
+# tini, for PID-1 signal handling and zombie reaping (startup.sh execs it).
+#
+# Pinned AND CHECKSUM VERIFIED. The previous version used a bare
+# `ADD https://github.com/.../tini /bin/tini`, which trusts whatever bytes that
+# URL serves at build time with no integrity check whatsoever.
+################################################################################
+ARG TINI_VERSION=v0.19.0
+ARG TINI_SHA256=93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c
+RUN curl -fsSLo /bin/tini \
+        "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini" \
+    && echo "${TINI_SHA256}  /bin/tini" | sha256sum -c - \
+    && chmod +x /bin/tini
+
+################################################################################
+# Web assets.
+#
+# The browser client is noVNC, served as static files by nginx -- no build step.
+# The old multi-stage builder installed Node 8 (EOL) and yarn via `curl | bash`
+# plus the deprecated `apt-key add`, purely to compile a Vue wrapper whose
+# lockfile carried 243 of this repo's 287 Dependabot alerts -- none of which
+# ever shipped inside the image.
+################################################################################
+COPY web/static/ /usr/local/lib/web/frontend/static/
+COPY image/ /
+
+# COPY preserves the source mode, and these scripts were committed 100644 in
+# every revision of this repo. An exec-form ENTRYPOINT on a non-executable file
+# fails with "permission denied", and supervisord could not launch xvfb.sh
+# either -- so the image as previously committed could not start at all. The git
+# modes are fixed too; this is belt-and-braces for clones that lose the bit
+# (Windows, zip downloads, some CI checkouts).
+RUN chmod +x /startup.sh /usr/local/bin/xvfb.sh /usr/local/bin/chromium-browser-sound.sh
+
+# 80   nginx -> noVNC client + /websockify
+# 5900 x11vnc, for a native VNC viewer. Publishing this exposes the desktop;
+#      set VNC_PASSWORD if you do. See SECURITY.md.
+EXPOSE 80 5900
+
+WORKDIR /root
+ENV TERM=xterm \
+    HOME=/root \
     SHELL=/bin/bash
-HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1:/6079/api/health
+
+# Was: curl --fail http://127.0.0.1:/6079/api/health
+# The colon was misplaced, so the port was empty and the check could never pass.
+# (Dockerfile.amd64 carried the corrected URL; the file `make build` actually
+# used did not.) There is no /api backend now, so check the thing that matters:
+# nginx serving the client. start-period covers desktop start-up.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD curl -fsS http://127.0.0.1/ >/dev/null || exit 1
+
+# startup.sh execs `tini -- supervisord` itself, so tini is not repeated here.
 ENTRYPOINT ["/startup.sh"]

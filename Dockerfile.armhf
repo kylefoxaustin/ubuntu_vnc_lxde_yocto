@@ -1,140 +1,88 @@
-FROM ubuntu:18.04 as amd64
-RUN apt update && apt install -y qemu-user-static
+################################################################################
+# ubuntu_vnc_lxde_yocto -- 32-bit ARM (armhf) variant
+#
+# ⚠️  NOT BUILT OR TESTED. The 2026 cleanup pass rewrote this file to match the
+#     amd64 Dockerfile and to remove the same defects (unverified tini download,
+#     --allow-unauthenticated, the Node 8 builder stage, the Python 2 backend),
+#     but it was NOT built: doing so needs binfmt/qemu-user-static registered on
+#     the host and an arm32v7 base that still resolves. Treat it as a starting
+#     point, not a working image. If you build it and it works, say so here.
+#
+# The amd64 Dockerfile IS built and verified -- see README.md.
+################################################################################
 
+# qemu-arm-static, so the arm32v7 stage can execute on an x86 builder.
+FROM ubuntu:18.04 AS qemu
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends qemu-user-static \
+    && rm -rf /var/lib/apt/lists/*
 
 ################################################################################
-# base system
-################################################################################
-FROM arm32v7/ubuntu:18.04 as system
+FROM arm32v7/ubuntu:18.04
+LABEL maintainer="kylefoxaustin"
 
-COPY --from=amd64 /usr/bin/qemu-arm-static /usr/bin/
+COPY --from=qemu /usr/bin/qemu-arm-static /usr/bin/
+
+ARG DEBIAN_FRONTEND=noninteractive
 ARG localbuild
-RUN #!/bin/bash
-RUN if [ "x$localbuild" != "x" ]; then sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; fi
+RUN if [ -n "$localbuild" ]; then \
+        sed -i 's#http://ports.ubuntu.com/#http://tw.ports.ubuntu.com/#' /etc/apt/sources.list; \
+    fi
 
-ENV DEBIAN_FRONTEND noninteractive
-RUN apt update \
-    && apt install -y --no-install-recommends software-properties-common curl apache2-utils \
-    && apt update \
-    && apt install -y --no-install-recommends --allow-unauthenticated \
-        supervisor nginx sudo vim-tiny net-tools zenity xz-utils \
+################################################################################
+# Desktop, VNC and web stack.
+#
+# Split across three apt layers deliberately: the original comment
+# "install debs error if combine together" records that combining them failed
+# under emulation, and that is worth preserving until someone proves otherwise.
+#
+# --allow-unauthenticated removed (it disabled package signature verification).
+# The `add-apt-repository -r ppa:fcwu-tw/apps` calls are gone too -- they removed
+# a PPA that was never added.
+################################################################################
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        supervisor nginx sudo net-tools ca-certificates curl apache2-utils \
+        vim-tiny zenity xz-utils \
         dbus-x11 x11-utils alsa-utils \
         mesa-utils libgl1-mesa-dri \
-    && add-apt-repository -r ppa:fcwu-tw/apps \
-    && apt autoclean -y \
-    && apt autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-# install debs error if combine together
-RUN apt update \
-    && apt install -y --no-install-recommends --allow-unauthenticated \
+        websockify \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
         lxde xvfb x11vnc \
         firefox chromium-browser \
-        ttf-ubuntu-font-family ttf-wqy-zenhei \
-    && apt autoclean -y \
-    && apt autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-RUN apt update \
-    && apt install -y --no-install-recommends --allow-unauthenticated \
-        gtk2-engines-murrine gnome-themes-standard gtk2-engines-pixbuf gtk2-engines-murrine arc-theme \
-    && apt autoclean -y \
-    && apt autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-# Additional packages require ~600MB
-# libreoffice  pinta language-pack-zh-hant language-pack-gnome-zh-hant firefox-locale-zh-hant libreoffice-l10n-zh-tw
+        fonts-ubuntu ttf-wqy-zenhei \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# tini for subreap                                   
-ARG TINI_VERSION=v0.18.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-armhf /bin/tini
-RUN chmod +x /bin/tini
-
-# ffmpeg
-#RUN mkdir -p /usr/local/ffmpeg \
-#    && curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-64bit-static.tar.xz | tar xJvf - -C /usr/local/ffmpeg/ --strip 1
-
-# python library
-COPY image/usr/local/lib/web/backend/requirements.txt /tmp/
-RUN apt-get update \
-    && dpkg-query -W -f='${Package}\n' > /tmp/a.txt \
-    && apt-get install -y python-pip python-dev build-essential \
-	&& pip install setuptools wheel && pip install -r /tmp/requirements.txt \
-    && dpkg-query -W -f='${Package}\n' > /tmp/b.txt \
-    && apt-get remove -y `diff --changed-group-format='%>' --unchanged-group-format='' /tmp/a.txt /tmp/b.txt | xargs` \
-    && apt-get autoclean -y \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/* /tmp/a.txt /tmp/b.txt
-
-# start installing Yocto base host packages, git, tar, python
-RUN apt-get update && apt-get install -y --no-install-recommends git tar python3
-
-# now install additional yocto base host packages
-RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gcc-multilib \
-     build-essential chrpath socat cpio python python3 python3-pip python3-pexpect \
-     xz-utils debianutils iputils-ping libsdl1.2-dev xterm
-
-RUN apt-get update
-
-# now install from the NXP i.MX recommended yocto packages
-RUN apt-get update && apt-get install -y --no-install-recommends gawk wget git-core diffstat unzip texinfo gcc-multilib \
- build-essential chrpath socat libsdl1.2-dev libsdl1.2-dev xterm sed cvs subversion coreutils texi2html \
-docbook-utils python-pysqlite2 help2man make gcc g++ desktop-file-utils \
-libgl1-mesa-dev libglu1-mesa-dev mercurial autoconf automake groff curl lzop asciidoc 
-
-RUN apt-get update
-
-# now install uboot tools from NXP i.MX recommended yocto packages
-RUN apt-get update && apt-get install -y --no-install-recommends u-boot-tools
-
-RUN apt-get update
-
-# now install emacs
-RUN apt-get update && apt-get install -y --no-install-recommends emacs
-
-RUN apt-get update
-
-
-
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gtk2-engines-murrine gtk2-engines-pixbuf gnome-themes-standard arc-theme \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ################################################################################
-# builder
+# tini -- pinned AND checksum verified (was a bare unverified ADD).
 ################################################################################
-FROM ubuntu:18.04 as builder
-
-ARG localbuild
-RUN if [ "x$localbuild" != "x" ]; then sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; fi
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates gnupg
-
-# nodejs
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - \
-    && apt-get install -y nodejs
-
-# yarn
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
-    && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
-    && apt-get update \
-    && apt-get install -y yarn
-
-# build frontend
-COPY web /src/web
-RUN cd /src/web \
-    && yarn \
-    && npm run build
-
+ARG TINI_VERSION=v0.19.0
+ARG TINI_SHA256=5a9b35f09ad2fb5d08f11ceb84407803a1deff96cbdc0d1222f9f8323f3f8ad4
+RUN curl -fsSLo /bin/tini \
+        "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-armhf" \
+    && echo "${TINI_SHA256}  /bin/tini" | sha256sum -c - \
+    && chmod +x /bin/tini
 
 ################################################################################
-# merge
+# Web assets. Static noVNC only -- no Node build stage, no Python backend.
 ################################################################################
-FROM system
-LABEL maintainer="fcwu.tw@gmail.com"
+COPY web/static/ /usr/local/lib/web/frontend/static/
+COPY image/ /
 
-COPY --from=builder /src/web/dist/ /usr/local/lib/web/frontend/
-COPY image /
+EXPOSE 80 5900
 
-EXPOSE 80
 WORKDIR /root
-ENV HOME=/home/ubuntu \
+ENV TERM=xterm \
+    HOME=/root \
     SHELL=/bin/bash
-HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1/api/health
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD curl -fsS http://127.0.0.1/ >/dev/null || exit 1
+
 ENTRYPOINT ["/startup.sh"]

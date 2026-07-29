@@ -1,171 +1,156 @@
-# ubuntu_vnc_lxde_yocto container
+# ubuntu_vnc_lxde_yocto
 
-# Overview
+A full Ubuntu 18.04 LXDE desktop in a container, reachable from a browser or a
+VNC viewer, preloaded with the host packages needed to build Yocto and NXP i.MX
+BSPs — plus an interactive menu for fetching Poky, `repo`, and an i.MX BSP.
 
-the purpose of the script is to provide a full LXDE desktop GUI environment within the
-container, accessible by your remote host system by a VNC viewer (127.0.0.1:5900)
+> **Status: unmaintained hobby project.** It is kept building and honest, not
+> current. The base image is deliberately Ubuntu 18.04, which is past standard
+> support. **Read [SECURITY.md](SECURITY.md) before exposing any port**, because
+> there is no authentication unless you ask for it.
 
-The container serves dual purposes:
-1) enable a full ubuntu 18 installation with LXDE GUI + sound so you can do anything with
-   the container you would normally do with Ubuntu
-2) an interactive menu that enables via terminal to install Yocto projects and i.MX BSPs
+## Overview
 
-eventually the intent is to port this container to run natively on i.MX 8 or any
-i.MX processor that can run docker-ce engine.  That way you can pull down this container
-and use the i.MX 8 processor to drive a local screen.  In essence, it enables you to pull
-the container onto i.MX 8 and run Ubuntu with just two commands (pull, then run) vs a full
-native install
+The container serves two purposes:
 
-This container has been tested on:
- Acer Aspire E 17 laptop running Ubuntu 18
- Acer Aspire E 17 laptop running Windows 10 + VirtualBox with a Ubuntu VM (docker on VM)
+1. A full Ubuntu 18.04 install with an LXDE GUI (and optional sound), so you can
+   do anything in it you would normally do in Ubuntu.
+2. An interactive terminal menu that installs Yocto Poky, Google's `repo` tool,
+   and an NXP i.MX BSP into the container.
 
- This script will also enable the user to specify a USER name and PASSWORD.
- These parameters are passed to the startup.sh by the docker run command itself, not via this script's argument processing capabilities
- that is why you see USER and PASSWORD processed below without any apparent checking for those arguments to be passed into the shell itself.
- that is all handled by docker...
+The original intent was to also run this natively on an i.MX 8 (or any i.MX part
+that can run a Docker engine) so the SoC drives a local screen — pull and run,
+instead of a full native install. See `Dockerfile.armhf`, which is **untested**.
 
- you do not have to include a USER name/Password or VNC or SSL configuration unless you so choose
+Tested by the author on an Acer Aspire E 17 running Ubuntu 18, and on the same
+laptop running Windows 10 + VirtualBox with an Ubuntu VM hosting Docker.
 
-# Maintainer:  kyle fox (github.com/kylefoxaustin)
+## Quick start
 
-# source for LXDE_VNC docker image:  https://github.com/fcwu/docker-ubuntu-vnc-desktop
- and many thanks to fcwu (aka Doro Wu), fcwu.tw@gmail.com for creating the initial
- LXDE_VNC docker image
-
-You can use this container with the command line arguments listed below (copied from the fcwu/docker-ubuntu-vnc-desktop source readme.md)
-
-Happy Coding
-
-Kylef
-
-
-
-
-
-docker-ubuntu-vnc-desktop
-=========================
-
-[![Docker Pulls](https://img.shields.io/docker/pulls/dorowu/ubuntu-desktop-lxde-vnc.svg)](https://hub.docker.com/r/dorowu/ubuntu-desktop-lxde-vnc/)
-[![Docker Stars](https://img.shields.io/docker/stars/dorowu/ubuntu-desktop-lxde-vnc.svg)](https://hub.docker.com/r/dorowu/ubuntu-desktop-lxde-vnc/)
-
-Docker image to provide HTML5 VNC interface to access Ubuntu 16.04 LXDE desktop environment.
-
-Quick Start
--------------------------
-
-Run the docker container and access with port `6080`
-
-```
-docker run -p 6080:80 dorowu/ubuntu-desktop-lxde-vnc
+```bash
+make build
+make run
 ```
 
-Browse http://127.0.0.1:6080/
+Then browse to **http://127.0.0.1:6080/**
 
-<img src="https://raw.github.com/fcwu/docker-ubuntu-vnc-desktop/master/screenshots/lxde.png?v1" width=700/>
+`make run` publishes only to `127.0.0.1` on purpose — see [SECURITY.md](SECURITY.md).
 
-**Ubuntu Version**
+![LXDE desktop](screenshots/lxde.png)
 
-Choose your favorite Ubuntu version with [tags](https://hub.docker.com/r/dorowu/ubuntu-desktop-lxde-vnc/tags/)
+### Make targets
 
-- bionic: Ubuntu 18.04 (latest)
-- xenial: Ubuntu 16.04
-- trusty: Ubuntu 14.04
+| Target | What it does |
+|---|---|
+| `make build` | Build `kylefoxaustin/ubuntu_vnc_lxde_yocto:latest` |
+| `make run` | Run it; browser client on `http://127.0.0.1:6080/` |
+| `make run-vnc VNC_PASSWORD=…` | As above plus VNC on `127.0.0.1:5900`; **refuses to run without a password** |
+| `make shell` | `bash` inside the running container |
+| `make stop` | Stop and remove *this project's* container only |
+| `make clean` | `stop`, then remove the built image |
+| `make gen-ssl` | Generate a self-signed cert into `./ssl` |
 
-VNC Viewer
-------------------
+Add `LOCALBUILD=1` to `make build` to fetch packages from a Taiwan mirror.
 
-Forward VNC service port 5900 to host by
+## Configuration
 
-```
-docker run -p 6080:80 -p 5900:5900 dorowu/ubuntu-desktop-lxde-vnc
-```
+All of these are `docker run -e NAME=value`:
 
-Now, open the vnc viewer and connect to port 5900. If you would like to protect vnc service by password, set environment variable `VNC_PASSWORD`, for example
+| Variable | Effect |
+|---|---|
+| `HTTP_PASSWORD` | Enable HTTP basic auth on the web client. **Set this.** |
+| `VNC_PASSWORD` | Require a password for port 5900. **Set this if you publish it.** |
+| `USER`, `PASSWORD` | Create and use a non-root desktop user (default: `root`) |
+| `RESOLUTION` | Fixed screen size, e.g. `1920x1080` (default `1024x768`) |
+| `SSL_PORT` | Serve HTTPS on this port; mount certs at `/etc/nginx/ssl` |
+| `ALSADEV` | ALSA device for sound, e.g. `hw:2,0` |
 
-```
-docker run -p 6080:80 -p 5900:5900 -e VNC_PASSWORD=mypassword dorowu/ubuntu-desktop-lxde-vnc
-```
+### VNC viewer
 
-A prompt will ask password either in the browser or vnc viewer.
-
-HTTP Base Authentication
----------------------------
-
-This image provides base access authentication of HTTP via `HTTP_PASSWORD`
-
-```
-docker run -p 6080:80 -e HTTP_PASSWORD=mypassword dorowu/ubuntu-desktop-lxde-vnc
-```
-
-SSL
---------------------
-
-To connect with SSL, generate self signed SSL certificate first if you don't have it
-
-```
-mkdir -p ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ssl/nginx.key -out ssl/nginx.crt
+```bash
+make run-vnc VNC_PASSWORD=mypassword
+# then point your viewer at 127.0.0.1:5900
 ```
 
-Specify SSL port by `SSL_PORT`, certificate path to `/etc/nginx/ssl`, and forward it to 6081
+### SSL
 
-```
-docker run -p 6081:443 -e SSL_PORT=443 -v ${PWD}/ssl:/etc/nginx/ssl dorowu/ubuntu-desktop-lxde-vnc
-```
-
-Screen Resolution
-------------------
-
-The Resolution of virtual desktop adapts browser window size when first connecting the server. You may choose a fixed resolution by passing `RESOLUTION` environment variable, for example
-
-```
-docker run -p 6080:80 -e RESOLUTION=1920x1080 dorowu/ubuntu-desktop-lxde-vnc
+```bash
+make gen-ssl
+docker run --rm -p 127.0.0.1:6081:443 \
+  -e SSL_PORT=443 -e HTTP_PASSWORD=mypassword \
+  -v ${PWD}/ssl:/etc/nginx/ssl \
+  kylefoxaustin/ubuntu_vnc_lxde_yocto
 ```
 
-Default Desktop User
---------------------
+### Sound (Linux hosts only)
 
-The default user is `root`. You may change the user and password respectively by `USER` and `PASSWORD` environment variable, for example,
+Insert the loopback module, then grant the device to the container:
 
-```
-docker run -p 6080:80 -e USER=doro -e PASSWORD=password dorowu/ubuntu-desktop-lxde-vnc
-```
-
-Sound (Preview version and Linux only)
--------------------
-
-It only works in Linux. 
-
-First of all, insert kernel module `snd-aloop` and specify `2` as the index of sound loop device
-
-```
+```bash
 sudo modprobe snd-aloop index=2
+docker run --rm -it -p 127.0.0.1:6080:80 \
+  --device /dev/snd -e ALSADEV=hw:2,0 \
+  kylefoxaustin/ubuntu_vnc_lxde_yocto
 ```
 
-Start the container
+Then launch Chromium from the start menu under *Internet → Chromium Web Browser
+Sound*. Note that wrapper passes `--no-sandbox`; see [SECURITY.md](SECURITY.md).
 
-```
-docker run -it --rm -p 6080:80 --device /dev/snd -e ALSADEV=hw:2,0 dorowu/ubuntu-desktop-lxde-vnc
-```
+## The Yocto menu
 
-where `--device /dev/snd -e ALSADEV=hw:2,0` means to grant sound device to container and set basic ASLA config to use card 2.
+On first start, `startup.sh` presents a menu that can:
 
-Launch a browser with URL http://127.0.0.1:6080/#/?video, where `video` means to start with video mode. Now you can start Chromium in start menu (Internet -> Chromium Web Browser Sound) and try to play some video.
+1. **Install Poky** — clones `https://git.yoctoproject.org/poky` into `$HOME/poky`
+   and checks out `yocto-2.5`, then optionally sources `oe-init-build-env`.
+2. **Install `repo`** — fetches Google's `repo` tool into `/usr/local/bin`.
+3. **Install an i.MX BSP** — uses `repo` to fetch an NXP i.MX BSP manifest.
+4. **Advanced** — run an arbitrary command.
 
-Following is the screen capture of these operations. Turn on your sound at the end of video!
+The Yocto and NXP i.MX host-package sets are baked into the image, so a build
+host is ready without further `apt-get`.
 
-[![demo video](http://img.youtube.com/vi/Kv9FGClP1-k/0.jpg)](http://www.youtube.com/watch?v=Kv9FGClP1-k)
+## What changed in the 2026 cleanup
 
+The repo had **287 open Dependabot alerts** and a build that failed on a dead
+download URL. Both are resolved. In short:
 
-Troubleshooting and FAQ
-==================
+- **287 → 0 dependency alerts**, by deleting dead code rather than pinning it.
+  243 came from a Node 8 + Vue 2 frontend toolchain whose output never shipped in
+  the image; 40 came from a Python 2 Flask backend that could not be upgraded on
+  this base (Ubuntu 18.04 ships Python 3.6; modern Flask needs ≥ 3.8). The
+  browser client is now noVNC served as static files — no build step at all.
+- **Supply-chain fixes**: package signature verification re-enabled
+  (`--allow-unauthenticated` removed), `tini` pinned and SHA256-verified instead
+  of an unchecked `ADD` from a URL, and `curl | bash` of the EOL Node 8 installer
+  removed along with the builder stage.
+- **A dead build step removed**: the ffmpeg tarball URL returns **404**, so the
+  build could not complete. It was only needed by the removed video feature.
+- **Real bugs fixed**, including a `HEALTHCHECK` whose URL was
+  `http://127.0.0.1:/6079/api/health` — a misplaced colon meant the port was
+  empty and the check could never pass; and a `cleanrun` script that ran
+  `docker rm $(docker ps -aq)`, deleting **every container on the host**.
+- **Safer defaults**: ports bind to `127.0.0.1`, `make run-vnc` refuses to
+  publish VNC without a password, and startup warns when either entry point is
+  unauthenticated.
+- Docs now describe *this* image. The previous README was largely upstream's,
+  so every example told you to run `dorowu/ubuntu-desktop-lxde-vnc` instead.
 
-1. boot2docker connection issue, https://github.com/fcwu/docker-ubuntu-vnc-desktop/issues/2
-2. Multi-language supports, https://github.com/fcwu/docker-ubuntu-vnc-desktop/issues/80
+Removed with the Python backend: `/api/state`, `/api/reset` (resolution changes
+over HTTP) and `/api/live.flv` (the FLV video/audio stream). Plain VNC is
+unaffected. Full reasoning in [SECURITY.md](SECURITY.md).
 
+## Credits
 
-License
-==================
+Built on [fcwu/docker-ubuntu-vnc-desktop](https://github.com/fcwu/docker-ubuntu-vnc-desktop)
+by **Doro Wu** (fcwu.tw@gmail.com) — many thanks for the original LXDE/VNC image.
+The browser client is [noVNC](https://github.com/novnc/noVNC) (vendored, 1.0.0-testing.2).
 
-See the LICENSE file for details.
+## Maintainer
+
+**Kyle Fox** — [github.com/kylefoxaustin](https://github.com/kylefoxaustin)
+
+Happy coding.
+
+## License
+
+See [LICENSE](LICENSE).

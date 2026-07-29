@@ -1,5 +1,16 @@
+# nginx site for ubuntu_vnc_lxde_yocto.
+#
+# The `location ~ ^/api` and `location @api` blocks that proxied to the Flask
+# backend on 127.0.0.1:6079 have been removed along with that backend, as has
+# the unused `location @proxy` block.
+#
+# SECURITY: there is NO authentication here unless HTTP_PASSWORD is set at
+# `docker run` time -- startup.sh uncomments the auth_basic lines below only in
+# that case. Publishing this port without it exposes the desktop to anyone who
+# can reach it. See SECURITY.md.
+
 server {
-	listen 80 default_server;
+    listen 80 default_server;
     # listen [::]:80 default_server ipv6only=on;
 
     #_SSL_PORT_#listen 443 ssl default_server;
@@ -10,33 +21,22 @@ server {
     #_HTTP_PASSWORD_#auth_basic "Private Property";
     #_HTTP_PASSWORD_#auth_basic_user_file /etc/nginx/.htpasswd;
 
-	root /usr/local/lib/web/frontend/;
-	index index.html index.htm;
+    root /usr/local/lib/web/frontend/;
+    index index.html index.htm;
 
-    location ~ ^/api {
-        try_files $uri @api;
-    }
-
+    # Browser WebSocket -> websockify -> x11vnc
     location = /websockify {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_pass http://127.0.0.1:6081;
-    }
-
-    location @api {
-        proxy_set_header X-Real-IP  $remote_addr;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header Host $host;
-        proxy_pass http://127.0.0.1:6079;
-        max_ranges 0;
-    }
-
-    location @proxy {
-        proxy_set_header X-Real-IP  $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header Host $host;
         proxy_pass http://127.0.0.1:6081;
-        max_ranges 0;
+
+        # A VNC session is long-lived and idle whenever the user is idle;
+        # without these it drops at nginx's 60s default.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 }
